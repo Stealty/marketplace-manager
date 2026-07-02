@@ -5,6 +5,7 @@ import { AppBar, Box, Drawer, IconButton, Toolbar, Typography, useMediaQuery, us
 import MenuIcon from '@mui/icons-material/Menu';
 import { NavList } from './nav-list';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { LogoutButton } from '@/components/LogoutButton';
 
 const SIDEBAR_WIDTH = 240;
 
@@ -20,14 +21,19 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const sidebarContent = (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Toolbar>
         <Typography variant="subtitle1" fontFamily="var(--font-heading)" fontWeight={600}>
           Command Center
         </Typography>
       </Toolbar>
-      <NavList onNavigate={() => setMobileOpen(false)} />
-    </>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+        <NavList onNavigate={() => setMobileOpen(false)} />
+      </Box>
+      <Box sx={{ borderTop: '1px solid', borderColor: 'divider', py: 1 }}>
+        <LogoutButton />
+      </Box>
+    </Box>
   );
 
   return (
