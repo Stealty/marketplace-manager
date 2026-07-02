@@ -23,7 +23,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Falha na validação do OAuth (state inválido)' }, { status: 400 });
   }
 
-  const tokens = await exchangeCodeForTokens(code, codeVerifier);
+  let tokens;
+  try {
+    tokens = await exchangeCodeForTokens(code, codeVerifier);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
 
   const supabase = await createClient();
   const orgs = await getCurrentUserOrganizations();
@@ -43,16 +48,21 @@ export async function GET(request: NextRequest) {
     .eq('external_account_id', externalAccountId)
     .maybeSingle();
 
-  const connectionPayload = {
-    org_id: org.id,
-    marketplace: 'mercado_livre' as const,
-    label: 'Mercado Livre',
-    status: 'connected' as const,
-    external_account_id: externalAccountId,
-    access_token_encrypted: encrypt(tokens.access_token),
-    refresh_token_encrypted: encrypt(tokens.refresh_token),
-    expires_at: expiresAt,
-  };
+  let connectionPayload;
+  try {
+    connectionPayload = {
+      org_id: org.id,
+      marketplace: 'mercado_livre' as const,
+      label: 'Mercado Livre',
+      status: 'connected' as const,
+      external_account_id: externalAccountId,
+      access_token_encrypted: encrypt(tokens.access_token),
+      refresh_token_encrypted: encrypt(tokens.refresh_token),
+      expires_at: expiresAt,
+    };
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
 
   const { error } = existing
     ? await supabase.from('marketplace_connections').update(connectionPayload).eq('id', existing.id)
