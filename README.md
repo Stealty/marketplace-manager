@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Marketplace Command Center
 
-## Getting Started
+Centralizador de operações de marketplaces (Mercado Livre, Amazon, TikTok Shop, Shopee e outros) — perguntas, frete, qualidade de anúncios e conferência de pedidos em um único painel multi-tenant.
 
-First, run the development server:
+Arquitetura completa e decisões de produto: ver o plano em
+`/Users/gabrielluizdossantosribeiro/.claude/plans/quero-criar-um-gerenciador-curious-narwhal.md`.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Stack
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Next.js 15 (App Router) + TypeScript
+- Supabase (Postgres + Auth + Row Level Security)
+- MUI v6 + Emotion
+- TanStack Query
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Crie um projeto no [Supabase](https://supabase.com).
+2. Copie `.env.example` para `.env.local` e preencha com as chaves do projeto (Settings → API).
+3. Rode a migration inicial (`supabase/migrations/0001_init.sql`) no SQL Editor do Supabase, ou via Supabase CLI:
+   ```bash
+   supabase link --project-ref <seu-project-ref>
+   supabase db push
+   ```
+4. Crie um usuário de teste em Authentication → Users, depois insira manualmente uma organização e um membership para ele (o fluxo de onboarding self-service ainda não existe nesta fase inicial):
+   ```sql
+   insert into organizations (name) values ('Empresa Teste') returning id;
+   insert into memberships (org_id, user_id, role) values ('<org_id>', '<user_id>', 'admin');
+   ```
+5. Instale dependências e rode localmente:
+   ```bash
+   npm install
+   npm run dev
+   ```
 
-## Learn More
+## Estado atual (Fase 1 — Fundação)
 
-To learn more about Next.js, take a look at the following resources:
+- [x] Estrutura Next.js + Supabase (clientes browser/server/admin, middleware de sessão)
+- [x] Schema multi-tenant com RLS (`organizations`, `memberships`, conexões de marketplace/ERP, catálogo, pedidos, perguntas, frete, jobs e eventos)
+- [x] Login e layout de dashboard com indicadores placeholder
+- [ ] Conector Mercado Livre (OAuth + perguntas + frete + reputação)
+- [ ] Integração Bling (ERP)
+- [ ] Onboarding self-service e billing (Stripe) em modo beta
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Módulos planejados (validados no protótipo existente)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Perguntas** — perguntas pré-venda pendentes de resposta, por marketplace
+- **Frete** — % Frete/Pedido por SKU, com sinalização de atenção
+- **Anúncios** — qualidade dos anúncios e sugestões de melhoria
+- **Pedidos** — conferência/reconciliação financeira entre canais
