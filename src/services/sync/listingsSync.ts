@@ -54,17 +54,21 @@ async function upsertListing(
   connection: MarketplaceConnection,
   item: MercadoLivreItem
 ) {
-  const sku = extractSellerSku(item);
-  if (!sku) return; // sem SKU reconhecível — anúncio é pulado (decisão de produto)
+  // Anúncios sem SELLER_SKU cadastrado no ML usam o próprio id do item como
+  // chave — evita descartar o anúncio, mas não há vínculo de SKU "real"
+  // entre marketplaces nesse caso.
+  const sku = extractSellerSku(item) ?? item.id;
 
-  const { data: product } = await supabase
+  const { data: product, error: upsertProductError } = await supabase
     .from('products')
+    .upsert(
+      { org_id: connection.org_id, sku, title: item.title },
+      { onConflict: 'org_id,sku', ignoreDuplicates: false }
+    )
     .select('id')
-    .eq('org_id', connection.org_id)
-    .eq('sku', sku)
-    .maybeSingle();
+    .single();
 
-  if (!product) return; // produto precisa já existir em `products` — não cria placeholder
+  if (upsertProductError) throw upsertProductError;
 
   const { error } = await supabase.from('product_listings').upsert(
     {

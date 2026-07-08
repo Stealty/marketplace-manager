@@ -19,6 +19,37 @@ export interface MercadoLivreTokens {
   user_id: number;
 }
 
+// Formato oficial de erro da API do ML: { message, error, status, cause }.
+// Guardamos os campos estruturados para permitir tratar códigos específicos
+// (ex: invalid_grant) sem depender de parsear texto livre.
+export class MercadoLivreApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+    public readonly cause_?: unknown
+  ) {
+    super(message);
+    this.name = 'MercadoLivreApiError';
+  }
+}
+
+async function parseErrorResponse(response: Response, context: string): Promise<never> {
+  const text = await response.text();
+  let parsed: { message?: string; error?: string; cause?: unknown } = {};
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // corpo não é JSON — segue com texto cru
+  }
+  throw new MercadoLivreApiError(
+    parsed.message ?? `Mercado Livre API error on ${context}: ${response.status} ${text}`,
+    response.status,
+    parsed.error,
+    parsed.cause
+  );
+}
+
 export function buildAuthorizationUrl(state: string, codeChallenge: string) {
   const { clientId, redirectUri } = getMercadoLivreConfig();
   const url = new URL(AUTH_URL);
@@ -39,7 +70,7 @@ async function requestToken(body: Record<string, string>): Promise<MercadoLivreT
   });
 
   if (!response.ok) {
-    throw new Error(`Mercado Livre token request failed: ${response.status} ${await response.text()}`);
+    await parseErrorResponse(response, 'oauth/token');
   }
 
   return response.json();
@@ -104,11 +135,25 @@ export async function getValidAccessToken(
   // O ML rotaciona o refresh_token a cada uso — a resposta inteira precisa
   // ser regravada, não só o access_token.
   const refreshToken = decrypt(connection.refresh_token_encrypted);
-  const tokens = await refreshTokens(refreshToken);
-  await persistTokens(supabase, connection.id, tokens);
-
-  return tokens.access_token;
+  try {
+    const tokens = await refreshTokens(refreshToken);
+    await persistTokens(supabase, connection.id, tokens);
+    return tokens.access_token;
+  } catch (error) {
+    // invalid_grant: refresh_token expirado, revogado ou já usado (ex: duas
+    // chamadas concorrentes disparando refresh ao mesmo tempo) — irrecuperável
+    // sem o usuário reconectar a conta pelo fluxo OAuth.
+    if (error instanceof MercadoLivreApiError && error.code === 'invalid_grant') {
+      await supabase
+        .from('marketplace_connections')
+        .update({ status: 'expired' })
+        .eq('id', connection.id);
+    }
+    throw error;
+  }
 }
+
+const MAX_RATE_LIMIT_RETRIES = 3;
 
 async function mlFetch(
   path: string,
@@ -121,15 +166,19 @@ async function mlFetch(
     headers: { Authorization: `Bearer ${accessToken}`, ...init?.headers },
   });
 
-  if (response.status === 429 && attempt < 1) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  // Limite documentado: 1500 req/min por vendedor. Em 429, respeita
+  // Retry-After quando presente; senão usa backoff exponencial (1s, 2s, 4s).
+  if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+    const retryAfterHeader = response.headers.get('Retry-After');
+    const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : null;
+    const backoffMs = retryAfterMs && !Number.isNaN(retryAfterMs) ? retryAfterMs : 2 ** attempt * 1000;
+    await new Promise((resolve) => setTimeout(resolve, backoffMs));
     return mlFetch(path, accessToken, attempt + 1, init);
   }
 
-  console.log({response})
-  // if (!response.ok) {
-  //   throw new Error(`Mercado Livre API error on ${path}: ${response.status} ${await response.text()}`);
-  // }
+  if (!response.ok) {
+    await parseErrorResponse(response, path);
+  }
 
   return response;
 }
@@ -190,6 +239,11 @@ export interface MercadoLivreItem {
   attributes?: { id: string; value_name: string | null }[];
 }
 
+// A API do ML limita `offset` a 1000 registros em /items/search e
+// /questions/search — acima disso é preciso trocar para
+// search_type=scan + scroll_id (que não tem esse teto).
+const OFFSET_PAGINATION_LIMIT = 1000;
+
 export async function fetchItemIds(
   supabase: SupabaseClient,
   connection: MarketplaceConnection
@@ -202,7 +256,7 @@ export async function fetchItemIds(
   const limit = 100;
   let offset = 0;
 
-  while (true) {
+  while (offset < OFFSET_PAGINATION_LIMIT) {
     const response = await mlFetch(
       `/users/${sellerId}/items/search?limit=${limit}&offset=${offset}`,
       accessToken
@@ -217,8 +271,26 @@ export async function fetchItemIds(
     // com menos resultados que o `limit` pedido (indicando última página).
     const total = data.paging?.total;
     offset += limit;
+    if (results.length === 0) return ids;
+    if (total !== undefined ? offset >= total : results.length < limit) return ids;
+  }
+
+  // Catálogo maior que o teto de offset — continua via scroll, que não tem
+  // limite de profundidade (scroll_id expira em 5 min, então cada página
+  // precisa ser consumida em sequência, sem pausas longas entre chamadas).
+  let scrollId: string | undefined;
+  while (true) {
+    const scrollParam = scrollId ? `&scroll_id=${scrollId}` : '';
+    const response = await mlFetch(
+      `/users/${sellerId}/items/search?search_type=scan&limit=${limit}${scrollParam}`,
+      accessToken
+    );
+    const data = await response.json();
+    const results: string[] = data.results ?? [];
     if (results.length === 0) break;
-    if (total !== undefined ? offset >= total : results.length < limit) break;
+    ids.push(...results);
+    scrollId = data.scroll_id;
+    if (!scrollId) break;
   }
 
   return ids;
@@ -273,7 +345,7 @@ export async function fetchQuestions(
   const limit = 50;
   let offset = 0;
 
-  while (true) {
+  while (offset < OFFSET_PAGINATION_LIMIT) {
     const response = await mlFetch(
       `/questions/search?seller_id=${sellerId}&limit=${limit}&offset=${offset}`,
       accessToken
@@ -286,8 +358,24 @@ export async function fetchQuestions(
     // a página vier incompleta (última página), não pelo acumulado.
     const total = data.total;
     offset += limit;
+    if (results.length === 0) return questions;
+    if (total !== undefined ? offset >= total : results.length < limit) return questions;
+  }
+
+  // Mais de 1000 perguntas — mesmo mecanismo de scroll usado em fetchItemIds.
+  let scrollId: string | undefined;
+  while (true) {
+    const scrollParam = scrollId ? `&scroll_id=${scrollId}` : '';
+    const response = await mlFetch(
+      `/questions/search?seller_id=${sellerId}&search_type=scan&limit=${limit}${scrollParam}`,
+      accessToken
+    );
+    const data = await response.json();
+    const results: MercadoLivreQuestion[] = data.questions ?? [];
     if (results.length === 0) break;
-    if (total !== undefined ? offset >= total : results.length < limit) break;
+    questions.push(...results);
+    scrollId = data.scroll_id;
+    if (!scrollId) break;
   }
 
   return questions;

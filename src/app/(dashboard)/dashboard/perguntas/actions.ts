@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { answerQuestion } from '@/lib/mercadolivre/client';
+import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import type { MarketplaceConnection } from '@/types/database';
 
 export async function answerThread(threadId: string, text: string): Promise<{ error?: string }> {
@@ -31,7 +32,7 @@ export async function answerThread(threadId: string, text: string): Promise<{ er
       trimmed
     );
   } catch (error) {
-    return { error: (error as Error).message };
+    return toFriendlySyncError(error);
   }
 
   const answeredAt = new Date().toISOString();
