@@ -126,9 +126,10 @@ async function mlFetch(
     return mlFetch(path, accessToken, attempt + 1, init);
   }
 
-  if (!response.ok) {
-    throw new Error(`Mercado Livre API error on ${path}: ${response.status} ${await response.text()}`);
-  }
+  console.log({response})
+  // if (!response.ok) {
+  //   throw new Error(`Mercado Livre API error on ${path}: ${response.status} ${await response.text()}`);
+  // }
 
   return response;
 }

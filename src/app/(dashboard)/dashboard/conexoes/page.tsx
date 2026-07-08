@@ -1,4 +1,4 @@
-import { Box, Button, Paper, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PageHeader } from '@/components/PageHeader';
@@ -9,6 +9,7 @@ import { getErpConnections, getMarketplaceConnections } from '@/services/connect
 import type { ConnectionStatus } from '@/types/database';
 import type { Tone } from '@/theme/tokens';
 import { ConnectionActions } from './connection-actions';
+import { ComingSoonButton } from './coming-soon-button';
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
   connected: 'Conectado',
@@ -97,13 +98,7 @@ export default async function ConexoesPage() {
                     Conectar
                   </Button>
                 ) : (
-                  <Tooltip title="Em breve">
-                    <span>
-                      <Button size="small" variant="text" disabled sx={{ alignSelf: 'flex-start' }}>
-                        Conectar
-                      </Button>
-                    </span>
-                  </Tooltip>
+                  <ComingSoonButton />
                 )}
               </Stack>
             </Paper>
@@ -144,13 +139,7 @@ export default async function ConexoesPage() {
                 <Typography variant="caption" color="text.secondary">
                   Nenhum ERP conectado.
                 </Typography>
-                <Tooltip title="Em breve">
-                  <span>
-                    <Button size="small" variant="text" disabled sx={{ alignSelf: 'flex-start' }}>
-                      Conectar
-                    </Button>
-                  </span>
-                </Tooltip>
+                <ComingSoonButton />
               </Stack>
             </Paper>
           )}
