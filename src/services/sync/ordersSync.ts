@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchOrders, type MercadoLivreOrder } from '@/lib/mercadolivre/client';
+import {
+  fetchOrders,
+  fetchShipment,
+  type MercadoLivreOrder,
+  type MercadoLivreShipment,
+} from '@/lib/mercadolivre/client';
 import type { MarketplaceConnection } from '@/types/database';
 
 export async function syncAllOrders(supabase: SupabaseClient): Promise<void> {
@@ -20,7 +25,7 @@ export async function syncAllOrders(supabase: SupabaseClient): Promise<void> {
 async function upsertSyncState(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
-  status: 'ok' | 'error',
+  status: 'ok' | 'error' | 'partial',
   error?: string
 ) {
   await supabase.from('sync_state').upsert(
@@ -39,16 +44,46 @@ async function upsertSyncState(
     org_id: connection.org_id,
     marketplace_connection_id: connection.id,
     job_type: 'sync_orders',
-    status: status === 'ok' ? 'done' : 'failed',
+    status: status === 'error' ? 'failed' : 'done',
     payload: error ? { error } : {},
   });
+}
+
+async function fetchShipmentsForOrders(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  orders: MercadoLivreOrder[]
+): Promise<{ shipments: Map<number, MercadoLivreShipment>; failedShipmentIds: number[] }> {
+  const shipmentIds = Array.from(
+    new Set(orders.map((o) => o.shipping?.id).filter((id): id is number => id !== undefined))
+  );
+
+  const shipments = new Map<number, MercadoLivreShipment>();
+  const failedShipmentIds: number[] = [];
+  for (const shipmentId of shipmentIds) {
+    try {
+      shipments.set(shipmentId, await fetchShipment(supabase, connection, shipmentId));
+    } catch {
+      // Erro pontual do ML (rate limit esgotado, 5xx, envio inválido) — o
+      // pedido correspondente fica sem frete calculado nesta rodada, mas o
+      // sync continua; a falha é reportada no sync_state em vez de mascarada
+      // como sucesso total, para não confundir "sem frete aplicável" com
+      // "falha ao consultar frete".
+      failedShipmentIds.push(shipmentId);
+    }
+  }
+  return { shipments, failedShipmentIds };
 }
 
 async function upsertOrder(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
-  mlOrder: MercadoLivreOrder
+  mlOrder: MercadoLivreOrder,
+  shipments: Map<number, MercadoLivreShipment>
 ) {
+  const shipment = mlOrder.shipping?.id ? shipments.get(mlOrder.shipping.id) : undefined;
+  const freightValue = shipment?.shipping_option?.cost ?? null;
+
   const { data: order, error } = await supabase
     .from('orders')
     .upsert(
@@ -58,8 +93,8 @@ async function upsertOrder(
         external_order_id: String(mlOrder.id),
         status: mlOrder.status,
         order_value: mlOrder.total_amount,
-        // frete depende de uma chamada extra ao endpoint de shipments do ML
-        // (mlOrder.shipping.id) — deixado para a próxima rodada.
+        freight_value: freightValue,
+        is_free_shipping: freightValue === 0,
         ordered_at: mlOrder.date_created,
       },
       { onConflict: 'marketplace_connection_id,external_order_id' }
@@ -92,10 +127,21 @@ export async function syncOrders(
 ): Promise<void> {
   try {
     const orders = await fetchOrders(supabase, connection);
+    const { shipments, failedShipmentIds } = await fetchShipmentsForOrders(supabase, connection, orders);
     for (const mlOrder of orders) {
-      await upsertOrder(supabase, connection, mlOrder);
+      await upsertOrder(supabase, connection, mlOrder, shipments);
     }
-    await upsertSyncState(supabase, connection, 'ok');
+
+    if (failedShipmentIds.length > 0) {
+      await upsertSyncState(
+        supabase,
+        connection,
+        'partial',
+        `Falha ao buscar frete de ${failedShipmentIds.length} envio(s): ${failedShipmentIds.join(', ')}`
+      );
+    } else {
+      await upsertSyncState(supabase, connection, 'ok');
+    }
   } catch (error) {
     await upsertSyncState(supabase, connection, 'error', (error as Error).message);
     throw error;

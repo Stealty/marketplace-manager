@@ -8,6 +8,7 @@ import { getCurrentUserOrganizations } from '@/services/organizationService';
 
 const STATE_COOKIE = 'ml_oauth_state';
 const VERIFIER_COOKIE = 'ml_oauth_verifier';
+const CONNECTION_ID_COOKIE = 'ml_oauth_connection_id';
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
@@ -16,8 +17,10 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const expectedState = cookieStore.get(STATE_COOKIE)?.value;
   const codeVerifier = cookieStore.get(VERIFIER_COOKIE)?.value;
+  const expectedConnectionId = cookieStore.get(CONNECTION_ID_COOKIE)?.value;
   cookieStore.delete(STATE_COOKIE);
   cookieStore.delete(VERIFIER_COOKIE);
+  cookieStore.delete(CONNECTION_ID_COOKIE);
 
   if (!code || !state || !expectedState || !codeVerifier || state !== expectedState) {
     return NextResponse.json({ error: 'Falha na validação do OAuth (state inválido)' }, { status: 400 });
@@ -39,6 +42,28 @@ export async function GET(request: NextRequest) {
 
   const externalAccountId = String(tokens.user_id);
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+
+  // "Reconectar" veio com um connectionId esperado — se a conta ML que
+  // autenticou for diferente da conexão que o usuário pretendia reconectar,
+  // aborta em vez de atualizar/criar silenciosamente a linha errada.
+  if (expectedConnectionId) {
+    const { data: expectedConnection } = await supabase
+      .from('marketplace_connections')
+      .select('external_account_id')
+      .eq('id', expectedConnectionId)
+      .eq('org_id', org.id)
+      .maybeSingle();
+
+    if (expectedConnection && expectedConnection.external_account_id !== externalAccountId) {
+      return NextResponse.json(
+        {
+          error:
+            'A conta do Mercado Livre usada no login é diferente da conta já conectada nesta linha. Reconecte usando a mesma conta ou desconecte antes de conectar uma conta diferente.',
+        },
+        { status: 400 }
+      );
+    }
+  }
 
   const { data: existing } = await supabase
     .from('marketplace_connections')

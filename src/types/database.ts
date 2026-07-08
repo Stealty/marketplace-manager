@@ -112,6 +112,21 @@ export interface ProductListing {
   created_at: string;
 }
 
+export interface ReputationMetric {
+  id: string;
+  org_id: string;
+  marketplace_connection_id: string;
+  metric_date: string;
+  metrics: {
+    level_id: string | null;
+    power_seller_status: string | null;
+    claims_rate: number | null;
+    delayed_handling_rate: number | null;
+    cancellations_rate: number | null;
+  };
+  created_at: string;
+}
+
 export interface ChatMessage {
   id: string;
   org_id: string;

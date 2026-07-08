@@ -1,7 +1,22 @@
 'use client';
 
 import * as React from 'react';
-import { Box, Collapse, Stack, Tab, Tabs, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Stack,
+  Tab,
+  Tabs,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { SectionPanel } from '@/components/SectionPanel';
@@ -9,8 +24,73 @@ import { StatusTag } from '@/components/StatusTag';
 import { EmptyState } from '@/components/EmptyState';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import type { QuestionThreadWithRelations } from '@/services/questionsService';
+import { answerThread } from './actions';
 
 type Filter = 'pending' | 'answered' | 'all';
+
+function AnswerForm({ threadId }: { threadId: string }) {
+  const [text, setText] = React.useState('');
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [isPending, startTransition] = React.useTransition();
+
+  function handleSend() {
+    setConfirmOpen(false);
+    startTransition(async () => {
+      const result = await answerThread(threadId, text);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setText('');
+        setError(null);
+      }
+    });
+  }
+
+  return (
+    <Stack spacing={1} onClick={(e) => e.stopPropagation()}>
+      {error && <Alert severity="error">{error}</Alert>}
+      <TextField
+        multiline
+        minRows={2}
+        size="small"
+        placeholder="Escreva a resposta para o comprador..."
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        disabled={isPending}
+      />
+      <Stack direction="row" justifyContent="flex-end">
+        <Button
+          size="small"
+          variant="contained"
+          disabled={isPending || text.trim().length === 0}
+          onClick={() => setConfirmOpen(true)}
+        >
+          Responder
+        </Button>
+      </Stack>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Confirmar envio da resposta</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Esta resposta será enviada diretamente ao Mercado Livre e não pode ser desfeita. Confirma o
+            envio?
+          </DialogContentText>
+          <Typography variant="body2" sx={{ mt: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+            {text}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSend}>
+            Enviar
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Stack>
+  );
+}
 
 export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[] }) {
   const [filter, setFilter] = React.useState<Filter>('pending');
@@ -100,6 +180,7 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
                           </Box>
                         ))
                     )}
+                    {isPending && <AnswerForm threadId={thread.id} />}
                   </Stack>
                 </Collapse>
               </Box>

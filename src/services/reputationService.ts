@@ -1,17 +1,15 @@
 import { after } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import type { ChatMessage, MarketplaceConnection, MarketplaceType, QuestionThread } from '@/types/database';
-import { syncQuestions } from '@/services/sync/questionsSync';
+import type { MarketplaceConnection, MarketplaceType, ReputationMetric } from '@/types/database';
+import { syncReputation } from '@/services/sync/reputationSync';
 import { isStale, SYNC_TTL_MINUTES } from '@/lib/sync/freshness';
 
-export interface QuestionThreadWithRelations extends QuestionThread {
-  product_listings: { title: string | null } | null;
+export interface ReputationMetricWithRelations extends ReputationMetric {
   marketplace_connections: { label: string; marketplace: MarketplaceType } | null;
-  chat_messages: ChatMessage[];
 }
 
-async function ensureQuestionsFresh(supabase: SupabaseClient, connections: MarketplaceConnection[]) {
+async function ensureReputationFresh(supabase: SupabaseClient, connections: MarketplaceConnection[]) {
   const mlConnections = connections.filter(
     (c) => c.marketplace === 'mercado_livre' && c.status === 'connected'
   );
@@ -20,7 +18,7 @@ async function ensureQuestionsFresh(supabase: SupabaseClient, connections: Marke
   const { data: syncStates } = await supabase
     .from('sync_state')
     .select('marketplace_connection_id, last_synced_at')
-    .eq('resource', 'questions')
+    .eq('resource', 'reputation')
     .in(
       'marketplace_connection_id',
       mlConnections.map((c) => c.id)
@@ -34,28 +32,33 @@ async function ensureQuestionsFresh(supabase: SupabaseClient, connections: Marke
     const lastSyncedAt = lastSyncedByConnection.get(connection.id) ?? null;
 
     if (lastSyncedAt === null) {
-      await syncQuestions(supabase, connection);
-    } else if (isStale(lastSyncedAt, SYNC_TTL_MINUTES.questions)) {
-      after(() => syncQuestions(supabase, connection));
+      await syncReputation(supabase, connection);
+    } else if (isStale(lastSyncedAt, SYNC_TTL_MINUTES.reputation)) {
+      after(() => syncReputation(supabase, connection));
     }
   }
 }
 
-export async function getQuestionThreads(): Promise<QuestionThreadWithRelations[]> {
+export async function getReputationMetrics(): Promise<ReputationMetricWithRelations[]> {
   const supabase = await createClient();
 
   const { data: connections } = await supabase.from('marketplace_connections').select('*');
-  await ensureQuestionsFresh(supabase, connections ?? []);
+  await ensureReputationFresh(supabase, connections ?? []);
 
   const { data, error } = await supabase
-    .from('questions_threads')
-    .select(
-      '*, product_listings(title), marketplace_connections(label, marketplace), chat_messages(*)'
-    )
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .returns<QuestionThreadWithRelations[]>();
+    .from('reputation_metrics')
+    .select('*, marketplace_connections(label, marketplace)')
+    .order('metric_date', { ascending: false })
+    .returns<ReputationMetricWithRelations[]>();
 
   if (error) throw error;
 
-  return data;
+  const latestByConnection = new Map<string, ReputationMetricWithRelations>();
+  for (const metric of data) {
+    if (!latestByConnection.has(metric.marketplace_connection_id)) {
+      latestByConnection.set(metric.marketplace_connection_id, metric);
+    }
+  }
+
+  return Array.from(latestByConnection.values());
 }

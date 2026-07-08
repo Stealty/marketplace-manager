@@ -8,6 +8,7 @@ import { MARKETPLACE_LABELS, MARKETPLACE_TYPES } from '@/lib/marketplace';
 import { getErpConnections, getMarketplaceConnections } from '@/services/connectionsService';
 import type { ConnectionStatus } from '@/types/database';
 import type { Tone } from '@/theme/tokens';
+import { ConnectionActions } from './connection-actions';
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
   connected: 'Conectado',
@@ -66,22 +67,7 @@ export default async function ConexoesPage() {
                   {connection.expires_at &&
                     ` · expira em ${format(new Date(connection.expires_at), 'd/MM/yyyy', { locale: ptBR })}`}
                 </Typography>
-                <Stack direction="row" spacing={1}>
-                  <Tooltip title="Em breve">
-                    <span>
-                      <Button size="small" variant="outlined" disabled>
-                        Reconectar
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Em breve">
-                    <span>
-                      <Button size="small" color="error" disabled>
-                        Desconectar
-                      </Button>
-                    </span>
-                  </Tooltip>
-                </Stack>
+                <ConnectionActions connectionId={connection.id} />
               </Stack>
             </Paper>
           ))}
