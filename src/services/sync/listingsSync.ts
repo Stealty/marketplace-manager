@@ -79,6 +79,7 @@ async function upsertListing(
       title: item.title,
       price: item.price,
       status: item.status,
+      stock: item.available_quantity ?? null,
     },
     { onConflict: 'marketplace_connection_id,external_id' }
   );

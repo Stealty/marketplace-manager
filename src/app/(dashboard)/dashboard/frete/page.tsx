@@ -1,13 +1,12 @@
-import { Box, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { Box, Stack } from '@mui/material';
 import { PageHeader } from '@/components/PageHeader';
 import { SectionPanel } from '@/components/SectionPanel';
-import { StatusTag } from '@/components/StatusTag';
 import { EmptyState } from '@/components/EmptyState';
 import { IndicatorCard } from '@/components/IndicatorCard';
 import { RefreshButton } from '@/components/RefreshButton';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import { getOrders } from '@/services/ordersService';
 import { FreightChart } from './freight-chart';
+import { DetailSection } from './detail-section';
 import { refreshOrders } from './actions';
 
 const BUCKETS = [
@@ -76,50 +75,7 @@ export default async function FretePage() {
       </SectionPanel>
 
       <SectionPanel kicker="Pedidos" title="Detalhamento">
-        {orders.length === 0 ? (
-          <EmptyState message="Nenhum pedido sincronizado ainda." />
-        ) : (
-          <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Pedido</TableCell>
-                  <TableCell>Marketplace</TableCell>
-                  <TableCell align="right">Valor</TableCell>
-                  <TableCell align="right">Frete</TableCell>
-                  <TableCell align="right">%</TableCell>
-                  <TableCell>Frete grátis</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow key={order.id} hover>
-                    <TableCell>
-                      <Typography variant="body2">{order.external_order_id}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      {order.marketplace_connections
-                        ? MARKETPLACE_LABELS[order.marketplace_connections.marketplace]
-                        : '—'}
-                    </TableCell>
-                    <TableCell align="right">
-                      {order.order_value !== null ? currency.format(order.order_value) : '—'}
-                    </TableCell>
-                    <TableCell align="right">
-                      {order.freight_value !== null ? currency.format(order.freight_value) : '—'}
-                    </TableCell>
-                    <TableCell align="right">
-                      {order.freight_ratio !== null ? `${order.freight_ratio.toFixed(1)}%` : '—'}
-                    </TableCell>
-                    <TableCell>
-                      {order.is_free_shipping && <StatusTag label="Frete grátis" tone="accent" />}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
+        <DetailSection orders={orders} />
       </SectionPanel>
     </Stack>
   );

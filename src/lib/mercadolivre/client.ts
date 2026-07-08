@@ -235,6 +235,7 @@ export interface MercadoLivreItem {
   title: string;
   price: number;
   status: string;
+  available_quantity?: number;
   seller_custom_field?: string | null;
   attributes?: { id: string; value_name: string | null }[];
 }
@@ -393,6 +394,55 @@ export async function answerQuestion(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question_id: questionId, text }),
   });
+}
+
+export type MercadoLivreItemStatus = 'active' | 'paused';
+
+async function putItem(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  itemId: string,
+  body: Record<string, unknown>
+): Promise<MercadoLivreItem> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  const response = await mlFetch(`/items/${itemId}`, accessToken, 0, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return response.json();
+}
+
+export function updateItemStatus(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  itemId: string,
+  status: MercadoLivreItemStatus
+): Promise<MercadoLivreItem> {
+  return putItem(supabase, connection, itemId, { status });
+}
+
+// Editar preço manualmente desativa qualquer automação de preço ativa no ML.
+export function updateItemPrice(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  itemId: string,
+  price: number
+): Promise<MercadoLivreItem> {
+  return putItem(supabase, connection, itemId, { price });
+}
+
+// available_quantity=0 pausa o anúncio automaticamente no lado do ML
+// (status muda para "paused" com substatus "out_of_stock") — por isso as
+// funções que chamam isso devem persistir o `status` da resposta, não supor
+// que ele ficou inalterado.
+export function updateItemStock(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  itemId: string,
+  availableQuantity: number
+): Promise<MercadoLivreItem> {
+  return putItem(supabase, connection, itemId, { available_quantity: availableQuantity });
 }
 
 // NOTE: `seller_reputation` é retornado dentro de GET /users/{id} — schema

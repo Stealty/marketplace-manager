@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { SectionPanel } from '@/components/SectionPanel';
 import { RefreshButton } from '@/components/RefreshButton';
 import { getProductListings } from '@/services/listingsService';
-import { ListingsGrid } from './listings-grid';
+import { ListingsList } from './listings-list';
 import { refreshListings } from './actions';
 
 export default async function AnunciosPage() {
@@ -18,7 +18,7 @@ export default async function AnunciosPage() {
         action={<RefreshButton action={refreshListings} />}
       />
       <SectionPanel>
-        <ListingsGrid listings={listings} />
+        <ListingsList listings={listings} />
       </SectionPanel>
     </Stack>
   );

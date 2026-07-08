@@ -109,6 +109,7 @@ export interface ProductListing {
   price: number | null;
   status: string | null;
   quality_score: number | null;
+  stock: number | null;
   created_at: string;
 }
 

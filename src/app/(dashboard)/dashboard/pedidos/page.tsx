@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { SectionPanel } from '@/components/SectionPanel';
 import { RefreshButton } from '@/components/RefreshButton';
 import { getOrders } from '@/services/ordersService';
-import { OrdersTable } from './orders-table';
+import { OrdersList } from './orders-list';
 import { refreshOrders } from './actions';
 
 export default async function PedidosPage() {
@@ -18,7 +18,7 @@ export default async function PedidosPage() {
         action={<RefreshButton action={refreshOrders} />}
       />
       <SectionPanel dense>
-        <OrdersTable orders={orders} />
+        <OrdersList orders={orders} />
       </SectionPanel>
     </Stack>
   );
