@@ -14,7 +14,7 @@ export default async function PedidosPage() {
       <PageHeader
         kicker="Pedidos"
         title="Pedidos"
-        subtitle="Pedidos recebidos em todas as contas, com detalhamento de itens."
+        subtitle="Confira o que foi vendido: SKU, quantidade, comprador e foto de cada item."
         action={<RefreshButton action={refreshOrders} />}
       />
       <SectionPanel dense>

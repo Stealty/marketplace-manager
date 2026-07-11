@@ -5,7 +5,12 @@ import {
   type MercadoLivreOrder,
   type MercadoLivreShipment,
 } from '@/lib/mercadolivre/client';
+import { mapWithConcurrency } from '@/lib/concurrency';
 import type { MarketplaceConnection } from '@/types/database';
+
+// Chamadas de frete em paralelo, limitadas para não competir demais com o
+// rate limit de 1500 req/min do ML nem com o refresh de token concorrente.
+const SHIPMENT_FETCH_CONCURRENCY = 8;
 
 export async function syncAllOrders(supabase: SupabaseClient): Promise<void> {
   const { data: connections, error } = await supabase
@@ -60,7 +65,7 @@ async function fetchShipmentsForOrders(
 
   const shipments = new Map<number, MercadoLivreShipment>();
   const failedShipmentIds: number[] = [];
-  for (const shipmentId of shipmentIds) {
+  await mapWithConcurrency(shipmentIds, SHIPMENT_FETCH_CONCURRENCY, async (shipmentId) => {
     try {
       shipments.set(shipmentId, await fetchShipment(supabase, connection, shipmentId));
     } catch {
@@ -71,15 +76,40 @@ async function fetchShipmentsForOrders(
       // "falha ao consultar frete".
       failedShipmentIds.push(shipmentId);
     }
-  }
+  });
   return { shipments, failedShipmentIds };
+}
+
+// Busca em lote o id do product_listing correspondente a cada item vendido
+// (chaveado pelo id interno do ML, hoje também salvo em order_items.sku) —
+// evita uma query por item ao popular order_items.product_listing_id.
+async function fetchListingIdsByExternalId(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  orders: MercadoLivreOrder[]
+): Promise<Map<string, string>> {
+  const externalIds = Array.from(
+    new Set(orders.flatMap((o) => o.order_items.map((item) => item.item.id)))
+  );
+  if (externalIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from('product_listings')
+    .select('id, external_id')
+    .eq('marketplace_connection_id', connection.id)
+    .in('external_id', externalIds);
+
+  if (error) throw error;
+
+  return new Map((data ?? []).map((listing) => [listing.external_id as string, listing.id as string]));
 }
 
 async function upsertOrder(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
   mlOrder: MercadoLivreOrder,
-  shipments: Map<number, MercadoLivreShipment>
+  shipments: Map<number, MercadoLivreShipment>,
+  listingIdByExternalId: Map<string, string>
 ) {
   const shipment = mlOrder.shipping?.id ? shipments.get(mlOrder.shipping.id) : undefined;
   const freightValue = shipment?.shipping_option?.cost ?? null;
@@ -96,6 +126,7 @@ async function upsertOrder(
         freight_value: freightValue,
         is_free_shipping: freightValue === 0,
         ordered_at: mlOrder.date_created,
+        buyer_nickname: mlOrder.buyer?.nickname ?? null,
       },
       { onConflict: 'marketplace_connection_id,external_order_id' }
     )
@@ -111,6 +142,7 @@ async function upsertOrder(
       mlOrder.order_items.map((item) => ({
         org_id: connection.org_id,
         order_id: order.id,
+        product_listing_id: listingIdByExternalId.get(item.item.id) ?? null,
         sku: item.item.id,
         title: item.item.title,
         quantity: item.quantity,
@@ -128,8 +160,9 @@ export async function syncOrders(
   try {
     const orders = await fetchOrders(supabase, connection);
     const { shipments, failedShipmentIds } = await fetchShipmentsForOrders(supabase, connection, orders);
+    const listingIdByExternalId = await fetchListingIdsByExternalId(supabase, connection, orders);
     for (const mlOrder of orders) {
-      await upsertOrder(supabase, connection, mlOrder, shipments);
+      await upsertOrder(supabase, connection, mlOrder, shipments, listingIdByExternalId);
     }
 
     if (failedShipmentIds.length > 0) {

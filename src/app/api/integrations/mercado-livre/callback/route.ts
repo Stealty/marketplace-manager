@@ -1,10 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, after, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { exchangeCodeForTokens } from '@/lib/mercadolivre/client';
+import { exchangeCodeForTokens, fetchUserNickname } from '@/lib/mercadolivre/client';
 import { encrypt } from '@/lib/crypto';
 import { getCurrentUserOrganizations } from '@/services/organizationService';
+import { syncAllResourcesForConnection } from '@/services/sync/fullSync';
+import type { MarketplaceConnection } from '@/types/database';
 
 const STATE_COOKIE = 'ml_oauth_state';
 const VERIFIER_COOKIE = 'ml_oauth_verifier';
@@ -35,13 +37,33 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
   const orgs = await getCurrentUserOrganizations();
-  const org = orgs[0];
-  if (!org) {
+  if (orgs.length === 0) {
     return NextResponse.json({ error: 'Usuário não pertence a nenhuma organização' }, { status: 400 });
   }
+  if (orgs.length > 1) {
+    // Não há hoje um seletor de "organização ativa" na UI para desambiguar —
+    // melhor abortar do que gravar o token na org errada silenciosamente.
+    return NextResponse.json(
+      { error: 'Usuário pertence a múltiplas organizações; seleção de organização ainda não suportada neste fluxo' },
+      { status: 400 }
+    );
+  }
+  const org = orgs[0];
 
   const externalAccountId = String(tokens.user_id);
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+
+  // Busca o nickname aqui em vez de depender do primeiro sync de pedidos:
+  // contas sem nenhum pedido nunca disparariam esse update (ver
+  // updateSellerNickname em ordersSync.ts). Não fatal — se falhar, o
+  // connectionPayload abaixo simplesmente não inclui `seller_nickname` e o
+  // sync de pedidos preenche depois.
+  let sellerNickname: string | null = null;
+  try {
+    sellerNickname = await fetchUserNickname(tokens.access_token, externalAccountId);
+  } catch (error) {
+    console.error('[mercadolivre] falha ao buscar nickname do vendedor no callback', error);
+  }
 
   // "Reconectar" veio com um connectionId esperado — se a conta ML que
   // autenticou for diferente da conexão que o usuário pretendia reconectar,
@@ -84,17 +106,36 @@ export async function GET(request: NextRequest) {
       access_token_encrypted: encrypt(tokens.access_token),
       refresh_token_encrypted: encrypt(tokens.refresh_token),
       expires_at: expiresAt,
+      ...(sellerNickname ? { seller_nickname: sellerNickname } : {}),
     };
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 
-  const { error } = existing
-    ? await supabase.from('marketplace_connections').update(connectionPayload).eq('id', existing.id)
-    : await supabase.from('marketplace_connections').insert(connectionPayload);
+  const isNewConnection = !existing;
+
+  const { data: connectionRow, error } = existing
+    ? await supabase
+        .from('marketplace_connections')
+        .update(connectionPayload)
+        .eq('id', existing.id)
+        .select('*')
+        .returns<MarketplaceConnection[]>()
+        .single()
+    : await supabase
+        .from('marketplace_connections')
+        .insert(connectionPayload)
+        .select('*')
+        .returns<MarketplaceConnection[]>()
+        .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (isNewConnection) {
+    after(() => syncAllResourcesForConnection(supabase, connectionRow));
+    redirect(`/dashboard/carregando?conexao=${connectionRow.id}`);
   }
 
   redirect('/dashboard/conexoes');

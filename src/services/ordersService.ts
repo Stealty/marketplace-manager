@@ -1,57 +1,46 @@
-import { after } from 'next/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import type { MarketplaceConnection, MarketplaceType, Order, OrderItem } from '@/types/database';
+import type { MarketplaceType, Order, OrderItem } from '@/types/database';
 import { syncOrders } from '@/services/sync/ordersSync';
-import { isStale, SYNC_TTL_MINUTES } from '@/lib/sync/freshness';
+import { syncConnectionProfile } from '@/services/sync/connectionProfileSync';
+import { ensureFresh } from '@/lib/sync/freshness';
+import { getCurrentUserOrgIds } from '@/services/organizationService';
 
-export interface OrderWithRelations extends Order {
-  marketplace_connections: { label: string; marketplace: MarketplaceType } | null;
-  order_items: OrderItem[];
+export interface OrderItemWithListing extends OrderItem {
+  product_listings: {
+    external_id: string;
+    image_url: string | null;
+    products: { sku: string; title: string } | null;
+  } | null;
 }
 
-// Cache-aside: nunca sincronizado -> busca agora (não tem cache pra mostrar);
-// cache velho (> TTL) -> serve o que já existe e atualiza em background via
-// `after()`, sem travar a resposta atual.
-async function ensureOrdersFresh(supabase: SupabaseClient, connections: MarketplaceConnection[]) {
-  const mlConnections = connections.filter(
-    (c) => c.marketplace === 'mercado_livre' && c.status === 'connected'
-  );
-  if (mlConnections.length === 0) return;
-
-  const { data: syncStates } = await supabase
-    .from('sync_state')
-    .select('marketplace_connection_id, last_synced_at')
-    .eq('resource', 'orders')
-    .in(
-      'marketplace_connection_id',
-      mlConnections.map((c) => c.id)
-    );
-
-  const lastSyncedByConnection = new Map<string, string | null>(
-    (syncStates ?? []).map((s) => [s.marketplace_connection_id, s.last_synced_at])
-  );
-
-  for (const connection of mlConnections) {
-    const lastSyncedAt = lastSyncedByConnection.get(connection.id) ?? null;
-
-    if (lastSyncedAt === null) {
-      await syncOrders(supabase, connection);
-    } else if (isStale(lastSyncedAt, SYNC_TTL_MINUTES.orders)) {
-      after(() => syncOrders(supabase, connection));
-    }
-  }
+export interface OrderWithRelations extends Order {
+  marketplace_connections: {
+    label: string;
+    marketplace: MarketplaceType;
+    seller_nickname: string | null;
+  } | null;
+  order_items: OrderItemWithListing[];
 }
 
 export async function getOrders(): Promise<OrderWithRelations[]> {
   const supabase = await createClient();
+  const orgIds = await getCurrentUserOrgIds();
 
-  const { data: connections } = await supabase.from('marketplace_connections').select('*');
-  await ensureOrdersFresh(supabase, connections ?? []);
+  const { data: connections } = await supabase
+    .from('marketplace_connections')
+    .select('*')
+    .in('org_id', orgIds);
+  await ensureFresh(supabase, connections ?? [], 'orders', syncOrders);
+  // Independente do sync de pedidos: garante o nickname mesmo para conexões
+  // sem nenhum pedido ainda (ver connectionProfileSync.ts).
+  await ensureFresh(supabase, connections ?? [], 'profile', syncConnectionProfile);
 
   const { data, error } = await supabase
     .from('orders')
-    .select('*, marketplace_connections(label, marketplace), order_items(*)')
+    .select(
+      '*, marketplace_connections(label, marketplace, seller_nickname), ' +
+        'order_items(*, product_listings(external_id, image_url, products(sku, title)))'
+    )
     .order('ordered_at', { ascending: false, nullsFirst: false })
     .returns<OrderWithRelations[]>();
 

@@ -42,6 +42,10 @@ async function parseErrorResponse(response: Response, context: string): Promise<
   } catch {
     // corpo não é JSON — segue com texto cru
   }
+  // Log do corpo bruto do erro — a mensagem da exception costuma ser
+  // genérica (ex: "At least one policy returned UNAUTHORIZED"), mas o
+  // `cause` do ML normalmente traz o código da policy específica que falhou.
+  console.error(`[mercadolivre] ${context} -> ${response.status}`, parsed.cause ?? text);
   throw new MercadoLivreApiError(
     parsed.message ?? `Mercado Livre API error on ${context}: ${response.status} ${text}`,
     response.status,
@@ -183,17 +187,51 @@ async function mlFetch(
   return response;
 }
 
+// Recebe o access_token diretamente (em vez de `connection`) porque é chamada
+// no callback do OAuth, antes de existir uma linha em marketplace_connections
+// para decorar com getValidAccessToken.
+export async function fetchUserNickname(accessToken: string, userId: string): Promise<string | null> {
+  const response = await mlFetch(`/users/${userId}`, accessToken);
+  const data = await response.json();
+  return data.nickname ?? null;
+}
+
+// Fonte de verdade para manter marketplace_connections.seller_nickname em dia
+// fora do callback do OAuth — independe de a conexão ter pedidos (ao contrário
+// de tirar o nickname de orders[0].seller, que fica preso em null para contas
+// sem nenhum pedido ainda).
+export async function fetchSellerNickname(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection
+): Promise<string | null> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  const sellerId = connection.external_account_id;
+  if (!sellerId) throw new Error(`Conexão ${connection.id} não tem external_account_id (seller id)`);
+
+  return fetchUserNickname(accessToken, sellerId);
+}
+
+// Formato confirmado a partir de uma resposta real de /orders/search (ver
+// histórico do console.log de depuração) — `buyer` e `seller` sempre vêm
+// preenchidos com `id`/`nickname` nos pedidos observados.
 export interface MercadoLivreOrder {
   id: number;
   status: string;
   date_created: string;
   total_amount: number;
+  buyer?: { id: number; nickname: string };
+  seller?: { id: number; nickname: string };
   shipping?: { id?: number };
   order_items: {
     item: { id: string; title: string };
     quantity: number;
     unit_price: number;
   }[];
+}
+
+export interface MercadoLivreOrdersSearchResponse {
+  results: MercadoLivreOrder[];
+  paging: { total: number; offset: number; limit: number };
 }
 
 export async function fetchOrders(
@@ -205,7 +243,8 @@ export async function fetchOrders(
   if (!sellerId) throw new Error(`Conexão ${connection.id} não tem external_account_id (seller id)`);
 
   const response = await mlFetch(`/orders/search?seller=${sellerId}&sort=date_desc`, accessToken);
-  const data = await response.json();
+  const data: MercadoLivreOrdersSearchResponse = await response.json();
+  console.log('[mercadolivre] fetchOrders ->', JSON.stringify(data, null, 2));
   return data.results ?? [];
 }
 
@@ -238,6 +277,7 @@ export interface MercadoLivreItem {
   available_quantity?: number;
   seller_custom_field?: string | null;
   attributes?: { id: string; value_name: string | null }[];
+  thumbnail?: string;
 }
 
 // A API do ML limita `offset` a 1000 registros em /items/search e

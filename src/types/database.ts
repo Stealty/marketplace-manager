@@ -32,6 +32,7 @@ export interface MarketplaceConnection {
   label: string;
   status: ConnectionStatus;
   external_account_id: string | null;
+  seller_nickname: string | null;
   access_token_encrypted: string | null;
   refresh_token_encrypted: string | null;
   expires_at: string | null;
@@ -73,6 +74,7 @@ export interface Order {
   freight_ratio: number | null;
   is_free_shipping: boolean;
   ordered_at: string | null;
+  buyer_nickname: string | null;
   created_at: string;
 }
 
@@ -85,6 +87,7 @@ export interface OrderItem {
   title: string | null;
   quantity: number;
   unit_price: number | null;
+  conferido: boolean;
 }
 
 export interface Product {
@@ -110,6 +113,7 @@ export interface ProductListing {
   status: string | null;
   quality_score: number | null;
   stock: number | null;
+  image_url: string | null;
   created_at: string;
 }
 

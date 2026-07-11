@@ -15,3 +15,14 @@ export async function refreshOrders(): Promise<{ error?: string }> {
   revalidatePath('/dashboard/pedidos');
   return {};
 }
+
+export async function toggleOrderItemConferido(
+  orderItemId: string,
+  conferido: boolean
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from('order_items').update({ conferido }).eq('id', orderItemId);
+  if (error) return { error: error.message };
+  revalidatePath('/dashboard/pedidos');
+  return {};
+}
