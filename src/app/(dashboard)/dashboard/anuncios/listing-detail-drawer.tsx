@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Button, CircularProgress, Stack, Typography } from '@mui/material';
 import { DetailDrawer } from '@/components/DetailDrawer';
+import { ExternalLinkButton } from '@/components/ExternalLinkButton';
 import { InlineEditableValue } from '@/components/InlineEditableValue';
 import { StatusTag } from '@/components/StatusTag';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
@@ -57,6 +58,10 @@ export function ListingDetailDrawer({
       }
     >
       <Stack spacing={2.5}>
+        {listing.permalink && (
+          <ExternalLinkButton href={listing.permalink} label="Ver no Mercado Livre" />
+        )}
+
         <Stack spacing={0.5}>
           <Typography variant="caption" color="text.secondary">
             Preço

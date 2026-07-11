@@ -55,6 +55,7 @@ async function upsertListing(
       status: item.status,
       stock: item.available_quantity ?? null,
       image_url: item.thumbnail ?? null,
+      permalink: item.permalink ?? null,
     },
     { onConflict: 'marketplace_connection_id,external_id' }
   );

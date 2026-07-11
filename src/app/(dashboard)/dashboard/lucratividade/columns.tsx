@@ -3,19 +3,12 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import type { DataListColumn } from '@/components/DataList';
 import { StatusTag } from '@/components/StatusTag';
 import type { Tone } from '@/theme/tokens';
+import type { ItemProfitability } from '@/lib/profitability';
 import type { OrderItemWithListing, OrderWithRelations } from '@/services/ordersService';
 import { CostInput } from './cost-input';
 
-export interface ProfitabilityRow extends OrderItemWithListing {
+export interface ProfitabilityRow extends OrderItemWithListing, ItemProfitability {
   order: OrderWithRelations;
-  productSku: string | null;
-  vendaBruta: number;
-  repasse: number;
-  repasseFeeKnown: boolean;
-  custoUnit: number | null;
-  custoTotal: number | null;
-  lucroBruto: number | null;
-  lucroPct: number | null;
 }
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });

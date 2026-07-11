@@ -15,6 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { DetailDrawer } from '@/components/DetailDrawer';
+import { ExternalLinkButton } from '@/components/ExternalLinkButton';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import type { QuestionThreadWithRelations } from '@/services/questionsService';
 import { answerThread } from './actions';
@@ -106,6 +107,10 @@ export function ThreadDetailDrawer({
       }
     >
       <Stack spacing={2}>
+        {thread.product_listings?.permalink && (
+          <ExternalLinkButton href={thread.product_listings.permalink} label="Ver anúncio no Mercado Livre" />
+        )}
+
         <Stack spacing={1}>
           {thread.chat_messages.length === 0 ? (
             <Typography variant="caption" color="text.secondary">

@@ -13,6 +13,7 @@ const RESOURCE_LABELS: Record<SyncResource, string> = {
   orders: 'Pedidos',
   listings: 'Anúncios',
   questions: 'Perguntas',
+  claims: 'Reclamações',
   reputation: 'Reputação',
   profile: 'Perfil da loja',
 };

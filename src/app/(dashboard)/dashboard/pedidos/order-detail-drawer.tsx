@@ -1,6 +1,7 @@
 'use client';
 
-import { Stack, Typography } from '@mui/material';
+import { IconButton, Stack, Typography } from '@mui/material';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { StatusTag } from '@/components/StatusTag';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
@@ -64,13 +65,27 @@ export function OrderDetailDrawer({
             </Typography>
           ) : (
             order.order_items.map((item) => (
-              <Stack key={item.id} direction="row" justifyContent="space-between" spacing={2}>
+              <Stack key={item.id} direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
                 <Typography variant="body2">
                   {item.quantity}× {item.title ?? item.sku ?? 'Item sem título'}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {item.unit_price !== null ? currency.format(item.unit_price) : '—'}
-                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    {item.unit_price !== null ? currency.format(item.unit_price) : '—'}
+                  </Typography>
+                  {item.product_listings?.permalink && (
+                    <IconButton
+                      size="small"
+                      component="a"
+                      href={item.product_listings.permalink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Ver anúncio no Mercado Livre"
+                    >
+                      <OpenInNewIcon fontSize="inherit" />
+                    </IconButton>
+                  )}
+                </Stack>
               </Stack>
             ))
           )}

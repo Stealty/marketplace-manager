@@ -44,7 +44,7 @@ export interface SyncState {
   id: string;
   org_id: string;
   marketplace_connection_id: string;
-  resource: 'orders' | 'questions' | 'listings' | 'reputation' | 'profile';
+  resource: 'orders' | 'questions' | 'claims' | 'listings' | 'reputation' | 'profile';
   last_synced_at: string | null;
   last_success_at: string | null;
   last_status: string | null;
@@ -117,6 +117,7 @@ export interface ProductListing {
   quality_score: number | null;
   stock: number | null;
   image_url: string | null;
+  permalink: string | null;
   created_at: string;
 }
 
@@ -142,6 +143,33 @@ export interface ChatMessage {
   sender: string;
   body: string | null;
   sent_at: string;
+}
+
+export interface Claim {
+  id: string;
+  org_id: string;
+  marketplace_connection_id: string;
+  order_id: string | null;
+  external_claim_id: string;
+  external_order_id: string | null;
+  type: string | null;
+  stage: string | null;
+  status: string | null;
+  reason: string | null;
+  seller_available_actions: string[];
+  last_updated: string | null;
+  created_at: string;
+}
+
+export interface ClaimMessage {
+  id: string;
+  org_id: string;
+  claim_id: string;
+  external_message_id: string | null;
+  sender: string;
+  body: string | null;
+  sent_at: string;
+  created_at: string;
 }
 
 export interface ErpConnection {

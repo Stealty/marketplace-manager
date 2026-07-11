@@ -9,6 +9,7 @@ export interface OrderItemWithListing extends OrderItem {
   product_listings: {
     external_id: string;
     image_url: string | null;
+    permalink: string | null;
     products: { sku: string; title: string; unit_cost: number | null } | null;
   } | null;
 }
@@ -39,7 +40,7 @@ export async function getOrders(): Promise<OrderWithRelations[]> {
     .from('orders')
     .select(
       '*, marketplace_connections(label, marketplace, seller_nickname), ' +
-        'order_items(*, product_listings(external_id, image_url, products(sku, title, unit_cost)))'
+        'order_items(*, product_listings(external_id, image_url, permalink, products(sku, title, unit_cost)))'
     )
     .order('ordered_at', { ascending: false, nullsFirst: false })
     .returns<OrderWithRelations[]>();

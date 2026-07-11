@@ -11,6 +11,9 @@ export function isStale(lastSyncedAt: string | null, ttlMinutes: number): boolea
 export const SYNC_TTL_MINUTES = {
   orders: 5,
   questions: 5,
+  // Reclamação/devolução é sensível a prazo (mediação tem SLA) — TTL curto,
+  // igual ao de orders/questions.
+  claims: 5,
   listings: 20,
   reputation: 20,
   // Nickname do vendedor muda raríssimo — TTL bem mais folgado que os

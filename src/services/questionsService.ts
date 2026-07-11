@@ -5,7 +5,7 @@ import { ensureFresh, getLastSuccessAt } from '@/lib/sync/freshness';
 import { getCurrentUserOrgIds } from '@/services/organizationService';
 
 export interface QuestionThreadWithRelations extends QuestionThread {
-  product_listings: { title: string | null } | null;
+  product_listings: { title: string | null; permalink: string | null } | null;
   marketplace_connections: { label: string; marketplace: MarketplaceType } | null;
   chat_messages: ChatMessage[];
 }
@@ -23,7 +23,7 @@ export async function getQuestionThreads(): Promise<QuestionThreadWithRelations[
   const { data, error } = await supabase
     .from('questions_threads')
     .select(
-      '*, product_listings(title), marketplace_connections(label, marketplace), chat_messages(*)'
+      '*, product_listings(title, permalink), marketplace_connections(label, marketplace), chat_messages(*)'
     )
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .returns<QuestionThreadWithRelations[]>();

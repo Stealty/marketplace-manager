@@ -329,6 +329,7 @@ export interface MercadoLivreItem {
   seller_custom_field?: string | null;
   attributes?: { id: string; value_name: string | null }[];
   thumbnail?: string;
+  permalink?: string;
 }
 
 // A API do ML limita `offset` a 1000 registros em /items/search e
@@ -559,4 +560,116 @@ export async function fetchReputation(
   const response = await mlFetch(`/users/${sellerId}`, accessToken);
   const data = await response.json();
   return data.seller_reputation ?? {};
+}
+
+// ─── Reclamações / devoluções (post-purchase) ──────────────────────────────
+// NOTE: a API de claims migrou para /post-purchase/v1/claims/ em 2024 (a v1
+// antiga em /claims/ foi descontinuada). Os campos/ações abaixo vêm de
+// documentação indireta — o fetch direto à doc oficial retornou 403 durante
+// o desenvolvimento. Revalidar assim que houver uma reclamação real numa
+// conta conectada; se o formato divergir, o ajuste fica isolado aqui.
+
+export interface MercadoLivreClaimPlayer {
+  role?: string;
+  type: string;
+  available_actions?: string[];
+}
+
+export interface MercadoLivreClaim {
+  id: number;
+  type: string;
+  stage: string;
+  status: string;
+  reason_id?: string;
+  resource?: string;
+  resource_id?: string;
+  last_updated?: string;
+  players?: MercadoLivreClaimPlayer[];
+}
+
+export interface MercadoLivreClaimMessage {
+  id: string;
+  sender_role: string;
+  message: string;
+  date_created: string;
+}
+
+export async function fetchClaims(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection
+): Promise<MercadoLivreClaim[]> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  const sellerId = connection.external_account_id;
+  if (!sellerId) throw new Error(`Conexão ${connection.id} não tem external_account_id (seller id)`);
+
+  const claims: MercadoLivreClaim[] = [];
+  const limit = 50;
+  let offset = 0;
+
+  while (offset < OFFSET_PAGINATION_LIMIT) {
+    const response = await mlFetch(
+      `/post-purchase/v1/claims/search?seller_id=${sellerId}&limit=${limit}&offset=${offset}`,
+      accessToken
+    );
+    const data = await response.json();
+    const results: MercadoLivreClaim[] = data.data ?? data.results ?? [];
+    claims.push(...results);
+
+    const total = data.paging?.total;
+    offset += limit;
+    if (results.length === 0) return claims;
+    if (total !== undefined ? offset >= total : results.length < limit) return claims;
+  }
+
+  return claims;
+}
+
+export async function fetchClaimDetail(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  claimId: string
+): Promise<MercadoLivreClaim> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  const response = await mlFetch(`/post-purchase/v1/claims/${claimId}`, accessToken);
+  return response.json();
+}
+
+export async function fetchClaimMessages(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  claimId: string
+): Promise<MercadoLivreClaimMessage[]> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  const response = await mlFetch(`/post-purchase/v1/claims/${claimId}/messages`, accessToken);
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.messages ?? []);
+}
+
+export async function sendClaimMessage(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  claimId: string,
+  text: string
+): Promise<void> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  await mlFetch(`/post-purchase/v1/claims/${claimId}/messages`, accessToken, 0, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: text }),
+  });
+}
+
+export type ClaimReturnReviewAction = 'return_review_ok' | 'return_review_fail';
+
+export async function reviewClaimReturn(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  claimId: string,
+  action: ClaimReturnReviewAction
+): Promise<void> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  await mlFetch(`/post-purchase/v1/claims/${claimId}/actions/${action}`, accessToken, 0, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
 }

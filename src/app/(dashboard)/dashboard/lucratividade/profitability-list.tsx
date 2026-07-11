@@ -4,6 +4,7 @@ import * as React from 'react';
 import { MenuItem, Stack, TextField } from '@mui/material';
 import { DataList } from '@/components/DataList';
 import { IndicatorCard } from '@/components/IndicatorCard';
+import { computeItemProfitability } from '@/lib/profitability';
 import type { OrderWithRelations } from '@/services/ordersService';
 import { PROFITABILITY_COLUMNS, type ProfitabilityRow } from './columns';
 
@@ -29,16 +30,7 @@ const ORDENACAO_OPTIONS: { value: Ordenacao; label: string }[] = [
 ];
 
 function toProfitabilityRow(item: OrderWithRelations['order_items'][number], order: OrderWithRelations): ProfitabilityRow {
-  const productSku = item.product_listings?.products?.sku ?? null;
-  const custoUnit = item.product_listings?.products?.unit_cost ?? null;
-  const vendaBruta = (item.unit_price ?? 0) * item.quantity;
-  const repasseFeeKnown = item.sale_fee !== null;
-  const repasse = vendaBruta - (item.sale_fee ?? 0);
-  const custoTotal = custoUnit !== null ? custoUnit * item.quantity : null;
-  const lucroBruto = custoTotal !== null ? repasse - custoTotal : null;
-  const lucroPct = custoTotal !== null && custoTotal > 0 && lucroBruto !== null ? (lucroBruto / custoTotal) * 100 : null;
-
-  return { ...item, order, productSku, vendaBruta, repasse, repasseFeeKnown, custoUnit, custoTotal, lucroBruto, lucroPct };
+  return { ...item, order, ...computeItemProfitability(item) };
 }
 
 export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) {
