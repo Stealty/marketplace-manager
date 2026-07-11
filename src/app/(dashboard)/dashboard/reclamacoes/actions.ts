@@ -10,11 +10,15 @@ import {
   type ClaimReturnReviewAction,
 } from '@/lib/mercadolivre/client';
 import { syncAllClaims } from '@/services/sync/claimsSync';
+import { syncAllOrders } from '@/services/sync/ordersSync';
 import type { MarketplaceConnection } from '@/types/database';
 
 export async function refreshClaims(): Promise<{ error?: string }> {
   const supabase = await createClient();
   try {
+    // orders antes de claims: claims resolve claims.order_id via lookup
+    // pontual em orders (busca por external_order_id) no momento do sync.
+    await syncAllOrders(supabase);
     await syncAllClaims(supabase);
   } catch (error) {
     return toFriendlySyncError(error);

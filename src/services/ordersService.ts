@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type { MarketplaceType, Order, OrderItem } from '@/types/database';
 import { syncOrders } from '@/services/sync/ordersSync';
+import { syncListings } from '@/services/sync/listingsSync';
 import { syncConnectionProfile } from '@/services/sync/connectionProfileSync';
 import { ensureFresh, getLastSuccessAt } from '@/lib/sync/freshness';
 import { getCurrentUserOrgIds } from '@/services/organizationService';
@@ -31,6 +32,12 @@ export async function getOrders(): Promise<OrderWithRelations[]> {
     .from('marketplace_connections')
     .select('*')
     .in('org_id', orgIds);
+  // Antes de orders: syncOrders resolve order_items.product_listing_id via
+  // lookup pontual em product_listings (não é join feito na leitura) — se
+  // listings nunca rodou para essa conexão, o vínculo (e a foto do produto)
+  // fica null até a próxima sincronização de orders depois que listings
+  // existir.
+  await ensureFresh(supabase, connections ?? [], 'listings', syncListings);
   await ensureFresh(supabase, connections ?? [], 'orders', syncOrders);
   // Independente do sync de pedidos: garante o nickname mesmo para conexões
   // sem nenhum pedido ainda (ver connectionProfileSync.ts).

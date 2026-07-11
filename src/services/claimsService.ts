@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type { Claim, ClaimMessage, MarketplaceType } from '@/types/database';
 import { syncClaims } from '@/services/sync/claimsSync';
+import { syncOrders } from '@/services/sync/ordersSync';
 import { ensureFresh, getLastSuccessAt } from '@/lib/sync/freshness';
 import { getCurrentUserOrgIds } from '@/services/organizationService';
 
@@ -18,6 +19,11 @@ export async function getClaims(): Promise<ClaimWithRelations[]> {
     .from('marketplace_connections')
     .select('*')
     .in('org_id', orgIds);
+  // Antes de claims: syncClaims resolve claims.order_id via lookup pontual em
+  // orders (busca por external_order_id) — se orders nunca rodou para essa
+  // conexão, o vínculo fica null até a próxima sincronização de claims depois
+  // que orders existir (ver ordersService.ts para o mesmo padrão).
+  await ensureFresh(supabase, connections ?? [], 'orders', syncOrders);
   await ensureFresh(supabase, connections ?? [], 'claims', syncClaims);
 
   const { data, error } = await supabase

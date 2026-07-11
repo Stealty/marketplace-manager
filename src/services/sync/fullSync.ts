@@ -9,12 +9,16 @@ import { syncReputation } from '@/services/sync/reputationSync';
 import { syncConnectionProfile } from '@/services/sync/connectionProfileSync';
 
 const RESOURCES: { resource: SyncResource; sync: (supabase: SupabaseClient, connection: MarketplaceConnection) => Promise<void> }[] = [
+  // listings primeiro: orders e questions resolvem product_listing_id via
+  // lookup pontual em product_listings no momento do próprio sync (não é um
+  // join feito na leitura) — se listings ainda não existir, o vínculo grava
+  // null e só se corrige na próxima rodada de sync de orders/questions.
+  { resource: 'listings', sync: syncListings },
   { resource: 'orders', sync: syncOrders },
   // claims depois de orders: o vínculo claim -> pedido local é melhor-esforço
   // (busca por external_order_id) e só acha o pedido se ele já tiver sido
   // sincronizado nesta mesma leva.
   { resource: 'claims', sync: syncClaims },
-  { resource: 'listings', sync: syncListings },
   { resource: 'questions', sync: syncQuestions },
   { resource: 'reputation', sync: syncReputation },
   { resource: 'profile', sync: syncConnectionProfile },

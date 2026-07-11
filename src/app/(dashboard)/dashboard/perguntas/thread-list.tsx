@@ -66,7 +66,7 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
                     tone={isPending ? 'warning' : 'success'}
                   />
                   <Typography variant="body2" sx={{ flexGrow: 1 }} noWrap>
-                    {thread.question_text ?? 'Pergunta sem texto sincronizado'}
+                    {thread.question_text?.trim() || 'Pergunta sem texto sincronizado'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">
                     {thread.marketplace_connections

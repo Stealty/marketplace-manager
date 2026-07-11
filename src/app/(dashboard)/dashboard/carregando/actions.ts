@@ -8,7 +8,7 @@ export interface ResourceProgress {
   status: 'pending' | 'ok' | 'error';
 }
 
-const RESOURCES: SyncResource[] = ['orders', 'claims', 'listings', 'questions', 'reputation', 'profile'];
+const RESOURCES: SyncResource[] = ['listings', 'orders', 'claims', 'questions', 'reputation', 'profile'];
 
 export async function getConnectionSyncProgress(connectionId: string): Promise<ResourceProgress[]> {
   const supabase = await createClient();

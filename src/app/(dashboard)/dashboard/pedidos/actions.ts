@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import { syncAllOrders } from '@/services/sync/ordersSync';
+import { syncAllListings } from '@/services/sync/listingsSync';
 import { syncAllConnectionProfiles } from '@/services/sync/connectionProfileSync';
 import { getOrders, getOrdersLastSyncedAt, type OrderWithRelations } from '@/services/ordersService';
 
@@ -20,6 +21,9 @@ export async function getOrdersData(): Promise<OrdersData> {
 export async function refreshOrders(): Promise<{ error?: string }> {
   const supabase = await createClient();
   try {
+    // listings antes de orders: orders resolve product_listing_id (foto do
+    // produto) via lookup pontual em product_listings no momento do sync.
+    await syncAllListings(supabase);
     await syncAllOrders(supabase);
     await syncAllConnectionProfiles(supabase);
   } catch (error) {

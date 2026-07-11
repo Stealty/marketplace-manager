@@ -99,7 +99,7 @@ export function ThreadDetailDrawer({
     <DetailDrawer
       open={Boolean(thread)}
       onClose={onClose}
-      title={thread.question_text ?? 'Pergunta sem texto sincronizado'}
+      title={thread.question_text?.trim() || 'Pergunta sem texto sincronizado'}
       subtitle={
         thread.marketplace_connections
           ? MARKETPLACE_LABELS[thread.marketplace_connections.marketplace]
@@ -125,7 +125,9 @@ export function ThreadDetailDrawer({
                   <Typography variant="caption" fontWeight={700}>
                     {message.sender}
                   </Typography>
-                  <Typography variant="body2">{message.body}</Typography>
+                  <Typography variant="body2">
+                    {message.body?.trim() || 'Mensagem sem texto sincronizado.'}
+                  </Typography>
                 </Box>
               ))
           )}
