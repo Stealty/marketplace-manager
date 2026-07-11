@@ -4,11 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import { syncAllOrders } from '@/services/sync/ordersSync';
+import { syncAllConnectionProfiles } from '@/services/sync/connectionProfileSync';
 
 export async function refreshOrders(): Promise<{ error?: string }> {
   const supabase = await createClient();
   try {
     await syncAllOrders(supabase);
+    await syncAllConnectionProfiles(supabase);
   } catch (error) {
     return toFriendlySyncError(error);
   }
