@@ -135,10 +135,23 @@ async function upsertOrder(
 
   if (error) throw error;
 
-  await supabase.from('order_items').delete().eq('order_id', order.id);
+  // Remove apenas os itens que saíram do pedido no ML — itens que continuam
+  // são upsertados por (order_id, sku) para preservar o campo `conferido`
+  // (delete+insert resetava a conferência a cada ressincronização).
+  const currentSkus = mlOrder.order_items.map((item) => item.item.id);
+  const { data: existingItems } = await supabase
+    .from('order_items')
+    .select('sku')
+    .eq('order_id', order.id);
+  const staleSkus = (existingItems ?? [])
+    .map((item) => item.sku as string | null)
+    .filter((sku): sku is string => sku !== null && !currentSkus.includes(sku));
+  if (staleSkus.length > 0) {
+    await supabase.from('order_items').delete().eq('order_id', order.id).in('sku', staleSkus);
+  }
 
   if (mlOrder.order_items.length > 0) {
-    const { error: itemsError } = await supabase.from('order_items').insert(
+    const { error: itemsError } = await supabase.from('order_items').upsert(
       mlOrder.order_items.map((item) => ({
         org_id: connection.org_id,
         order_id: order.id,
@@ -147,7 +160,8 @@ async function upsertOrder(
         title: item.item.title,
         quantity: item.quantity,
         unit_price: item.unit_price,
-      }))
+      })),
+      { onConflict: 'order_id,sku' }
     );
     if (itemsError) throw itemsError;
   }

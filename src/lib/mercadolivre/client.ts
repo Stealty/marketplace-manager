@@ -121,6 +121,69 @@ async function persistTokens(
   if (error) throw error;
 }
 
+// Dedupe de refresh concorrente dentro do mesmo processo: várias chamadas de
+// getValidAccessToken para a mesma conexão (ex: orders/questions/listings
+// disparados em paralelo por Promise.all) compartilham a mesma promise em vez
+// de cada uma trocar o refresh_token isoladamente — o ML invalida o
+// refresh_token assim que ele é usado uma vez, então duas trocas simultâneas
+// com o mesmo refresh_token sempre resultam em invalid_grant para a perdedora.
+const inFlightRefreshes = new Map<string, Promise<string>>();
+
+async function refreshAccessToken(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  refreshToken: string
+): Promise<string> {
+  const existing = inFlightRefreshes.get(connection.id);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      // O ML rotaciona o refresh_token a cada uso — a resposta inteira precisa
+      // ser regravada, não só o access_token.
+      const tokens = await refreshTokens(refreshToken);
+      await persistTokens(supabase, connection.id, tokens);
+      return tokens.access_token;
+    } catch (error) {
+      // invalid_grant: refresh_token expirado, revogado ou já usado. Antes de
+      // desistir, reconfere o estado atual no banco — se outro processo (fora
+      // do dedupe em memória, ex: outra instância serverless) já rotacionou
+      // com sucesso enquanto esta chamada estava em voo, usa o token que ele
+      // gravou em vez de sobrescrever uma conexão válida como expirada.
+      if (error instanceof MercadoLivreApiError && error.code === 'invalid_grant') {
+        const { data: current } = await supabase
+          .from('marketplace_connections')
+          .select('access_token_encrypted, expires_at, status')
+          .eq('id', connection.id)
+          .single();
+
+        const currentExpiresAt = current?.expires_at ? new Date(current.expires_at).getTime() : 0;
+        const alreadyRefreshed =
+          current?.status === 'connected' &&
+          currentExpiresAt > Date.now() &&
+          Boolean(current.access_token_encrypted);
+
+        if (alreadyRefreshed) {
+          return decrypt(current!.access_token_encrypted!);
+        }
+
+        await supabase
+          .from('marketplace_connections')
+          .update({ status: 'expired' })
+          .eq('id', connection.id);
+      }
+      throw error;
+    }
+  })();
+
+  inFlightRefreshes.set(connection.id, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightRefreshes.delete(connection.id);
+  }
+}
+
 export async function getValidAccessToken(
   supabase: SupabaseClient,
   connection: MarketplaceConnection
@@ -136,25 +199,8 @@ export async function getValidAccessToken(
     return decrypt(connection.access_token_encrypted);
   }
 
-  // O ML rotaciona o refresh_token a cada uso — a resposta inteira precisa
-  // ser regravada, não só o access_token.
   const refreshToken = decrypt(connection.refresh_token_encrypted);
-  try {
-    const tokens = await refreshTokens(refreshToken);
-    await persistTokens(supabase, connection.id, tokens);
-    return tokens.access_token;
-  } catch (error) {
-    // invalid_grant: refresh_token expirado, revogado ou já usado (ex: duas
-    // chamadas concorrentes disparando refresh ao mesmo tempo) — irrecuperável
-    // sem o usuário reconectar a conta pelo fluxo OAuth.
-    if (error instanceof MercadoLivreApiError && error.code === 'invalid_grant') {
-      await supabase
-        .from('marketplace_connections')
-        .update({ status: 'expired' })
-        .eq('id', connection.id);
-    }
-    throw error;
-  }
+  return refreshAccessToken(supabase, connection, refreshToken);
 }
 
 const MAX_RATE_LIMIT_RETRIES = 3;

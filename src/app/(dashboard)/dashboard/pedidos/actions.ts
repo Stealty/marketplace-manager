@@ -5,6 +5,11 @@ import { createClient } from '@/lib/supabase/server';
 import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import { syncAllOrders } from '@/services/sync/ordersSync';
 import { syncAllConnectionProfiles } from '@/services/sync/connectionProfileSync';
+import { getOrders, type OrderWithRelations } from '@/services/ordersService';
+
+export async function getOrdersData(): Promise<OrderWithRelations[]> {
+  return getOrders();
+}
 
 export async function refreshOrders(): Promise<{ error?: string }> {
   const supabase = await createClient();

@@ -92,8 +92,6 @@ async function upsertQuestion(
 
   if (error) throw error;
 
-  await supabase.from('chat_messages').delete().eq('thread_id', thread.id);
-
   const messages = [
     {
       org_id: connection.org_id,
@@ -114,7 +112,11 @@ async function upsertQuestion(
     });
   }
 
-  const { error: messagesError } = await supabase.from('chat_messages').insert(messages);
+  // upsert (não delete+insert) — idempotente mesmo se outro sync da mesma
+  // conexão estiver rodando em paralelo (ensureFresh não trava contra isso).
+  const { error: messagesError } = await supabase
+    .from('chat_messages')
+    .upsert(messages, { onConflict: 'thread_id,sender' });
   if (messagesError) throw messagesError;
 }
 
