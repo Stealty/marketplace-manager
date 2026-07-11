@@ -48,7 +48,7 @@ export function SectionPanel({
           {action}
         </Stack>
       )}
-      <Box sx={{ p: dense ? 0 : 2.5 }}>{children}</Box>
+      <Box sx={{ p: dense ? 2.5 : 2.5 }}>{children}</Box>
     </Paper>
   );
 }

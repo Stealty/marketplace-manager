@@ -1,11 +1,12 @@
 import { createTheme, type Theme } from '@mui/material/styles';
-import { tokens, type ColorMode } from './tokens';
+import { THEME_PRESETS, type ColorMode, type ThemePresetId } from './tokens';
 
-const HEADING_FONT = 'var(--font-heading), Georgia, serif';
 const BODY_FONT = 'var(--font-body), system-ui, sans-serif';
 
-export function getTheme(mode: ColorMode): Theme {
-  const t = tokens[mode];
+export function getTheme(mode: ColorMode, presetId: ThemePresetId = 'terracota'): Theme {
+  const preset = THEME_PRESETS[presetId];
+  const t = preset[mode];
+  const HEADING_FONT = `var(${preset.headingFontVar}), Georgia, serif`;
 
   return createTheme({
     palette: {

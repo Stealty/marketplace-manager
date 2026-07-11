@@ -1,11 +1,17 @@
 import type { Metadata } from 'next';
-import { Fraunces, Inter } from 'next/font/google';
+import { Space_Grotesk, Manrope, Inter } from 'next/font/google';
 import { Providers } from './providers';
 import './globals.css';
 
-const heading = Fraunces({
+const headingOceano = Space_Grotesk({
   subsets: ['latin'],
-  variable: '--font-heading',
+  variable: '--font-heading-oceano',
+  display: 'swap',
+});
+
+const headingFloresta = Manrope({
+  subsets: ['latin'],
+  variable: '--font-heading-floresta',
   display: 'swap',
 });
 
@@ -22,7 +28,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" data-theme-mode="dark" className={`${heading.variable} ${body.variable}`}>
+    <html
+      lang="pt-BR"
+      data-theme-mode="dark"
+      className={`${headingOceano.variable} ${headingFloresta.variable} ${body.variable}`}
+    >
       <body>
         <Providers>{children}</Providers>
       </body>

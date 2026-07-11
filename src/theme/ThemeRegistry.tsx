@@ -7,10 +7,12 @@ import { CacheProvider } from '@emotion/react';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { getTheme } from './theme';
 import { ColorModeProvider, useColorMode } from './ColorModeContext';
+import { ThemePresetProvider, useThemePreset } from './ThemePresetContext';
 
 function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const { mode } = useColorMode();
-  const theme = React.useMemo(() => getTheme(mode), [mode]);
+  const { presetId } = useThemePreset();
+  const theme = React.useMemo(() => getTheme(mode, presetId), [mode, presetId]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -60,7 +62,9 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
   return (
     <CacheProvider value={cache}>
       <ColorModeProvider>
-        <AppThemeProvider>{children}</AppThemeProvider>
+        <ThemePresetProvider>
+          <AppThemeProvider>{children}</AppThemeProvider>
+        </ThemePresetProvider>
       </ColorModeProvider>
     </CacheProvider>
   );

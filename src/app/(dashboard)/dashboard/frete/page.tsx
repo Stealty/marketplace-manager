@@ -4,7 +4,8 @@ import { SectionPanel } from '@/components/SectionPanel';
 import { EmptyState } from '@/components/EmptyState';
 import { IndicatorCard } from '@/components/IndicatorCard';
 import { RefreshButton } from '@/components/RefreshButton';
-import { getOrders } from '@/services/ordersService';
+import { LastSyncedInfo } from '@/components/LastSyncedInfo';
+import { getOrders, getOrdersLastSyncedAt } from '@/services/ordersService';
 import { FreightChart } from './freight-chart';
 import { DetailSection } from './detail-section';
 import { refreshOrders } from './actions';
@@ -19,7 +20,7 @@ const BUCKETS = [
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default async function FretePage() {
-  const orders = await getOrders();
+  const [orders, lastSuccessAt] = await Promise.all([getOrders(), getOrdersLastSyncedAt()]);
   const withRatio = orders.filter((order) => order.freight_ratio !== null);
 
   const avgRatio =
@@ -47,7 +48,12 @@ export default async function FretePage() {
         kicker="Logística"
         title="Frete"
         subtitle="Relação entre frete e valor do pedido, por conta de marketplace."
-        action={<RefreshButton action={refreshOrders} />}
+        action={
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <LastSyncedInfo lastSuccessAt={lastSuccessAt} />
+            <RefreshButton action={refreshOrders} />
+          </Stack>
+        }
       />
 
       <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>

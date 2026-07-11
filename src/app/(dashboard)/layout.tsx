@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getMarketplaceConnections } from '@/services/connectionsService';
 import { AppShell } from './app-shell';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -7,5 +8,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     data: { user },
   } = await supabase.auth.getUser();
 
-  return <AppShell userEmail={user?.email ?? null}>{children}</AppShell>;
+  const connections = await getMarketplaceConnections();
+  const expiredConnections = connections
+    .filter((c) => c.status === 'expired')
+    .map((c) => ({ id: c.id, label: c.label, expiresAt: c.expires_at }));
+
+  return (
+    <AppShell userEmail={user?.email ?? null} expiredConnections={expiredConnections}>
+      {children}
+    </AppShell>
+  );
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchSellerNickname } from '@/lib/mercadolivre/client';
+import { upsertSyncState } from '@/lib/sync/freshness';
 import type { MarketplaceConnection } from '@/types/database';
 
 export async function syncAllConnectionProfiles(supabase: SupabaseClient): Promise<void> {
@@ -17,33 +18,6 @@ export async function syncAllConnectionProfiles(supabase: SupabaseClient): Promi
   }
 }
 
-async function upsertSyncState(
-  supabase: SupabaseClient,
-  connection: MarketplaceConnection,
-  status: 'ok' | 'error',
-  error?: string
-) {
-  await supabase.from('sync_state').upsert(
-    {
-      org_id: connection.org_id,
-      marketplace_connection_id: connection.id,
-      resource: 'profile',
-      last_synced_at: new Date().toISOString(),
-      last_status: status,
-      last_error: error ?? null,
-    },
-    { onConflict: 'marketplace_connection_id,resource' }
-  );
-
-  await supabase.from('sync_jobs').insert({
-    org_id: connection.org_id,
-    marketplace_connection_id: connection.id,
-    job_type: 'sync_connection_profile',
-    status: status === 'ok' ? 'done' : 'failed',
-    payload: error ? { error } : {},
-  });
-}
-
 export async function syncConnectionProfile(
   supabase: SupabaseClient,
   connection: MarketplaceConnection
@@ -58,9 +32,16 @@ export async function syncConnectionProfile(
       if (error) throw error;
     }
 
-    await upsertSyncState(supabase, connection, 'ok');
+    await upsertSyncState(supabase, connection, 'profile', 'sync_connection_profile', 'ok');
   } catch (error) {
-    await upsertSyncState(supabase, connection, 'error', (error as Error).message);
+    await upsertSyncState(
+      supabase,
+      connection,
+      'profile',
+      'sync_connection_profile',
+      'error',
+      (error as Error).message
+    );
     throw error;
   }
 }

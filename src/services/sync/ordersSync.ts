@@ -6,6 +6,7 @@ import {
   type MercadoLivreShipment,
 } from '@/lib/mercadolivre/client';
 import { mapWithConcurrency } from '@/lib/concurrency';
+import { upsertSyncState } from '@/lib/sync/freshness';
 import type { MarketplaceConnection } from '@/types/database';
 
 // Chamadas de frete em paralelo, limitadas para não competir demais com o
@@ -25,33 +26,6 @@ export async function syncAllOrders(supabase: SupabaseClient): Promise<void> {
   for (const connection of connections ?? []) {
     await syncOrders(supabase, connection);
   }
-}
-
-async function upsertSyncState(
-  supabase: SupabaseClient,
-  connection: MarketplaceConnection,
-  status: 'ok' | 'error' | 'partial',
-  error?: string
-) {
-  await supabase.from('sync_state').upsert(
-    {
-      org_id: connection.org_id,
-      marketplace_connection_id: connection.id,
-      resource: 'orders',
-      last_synced_at: new Date().toISOString(),
-      last_status: status,
-      last_error: error ?? null,
-    },
-    { onConflict: 'marketplace_connection_id,resource' }
-  );
-
-  await supabase.from('sync_jobs').insert({
-    org_id: connection.org_id,
-    marketplace_connection_id: connection.id,
-    job_type: 'sync_orders',
-    status: status === 'error' ? 'failed' : 'done',
-    payload: error ? { error } : {},
-  });
 }
 
 async function fetchShipmentsForOrders(
@@ -183,14 +157,16 @@ export async function syncOrders(
       await upsertSyncState(
         supabase,
         connection,
+        'orders',
+        'sync_orders',
         'partial',
         `Falha ao buscar frete de ${failedShipmentIds.length} envio(s): ${failedShipmentIds.join(', ')}`
       );
     } else {
-      await upsertSyncState(supabase, connection, 'ok');
+      await upsertSyncState(supabase, connection, 'orders', 'sync_orders', 'ok');
     }
   } catch (error) {
-    await upsertSyncState(supabase, connection, 'error', (error as Error).message);
+    await upsertSyncState(supabase, connection, 'orders', 'sync_orders', 'error', (error as Error).message);
     throw error;
   }
 }

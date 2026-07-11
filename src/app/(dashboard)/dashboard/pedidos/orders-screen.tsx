@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/PageHeader';
 import { SectionPanel } from '@/components/SectionPanel';
 import { RefreshButton } from '@/components/RefreshButton';
+import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { OrdersList } from './orders-list';
 import { getOrdersData, refreshOrders } from './actions';
 
@@ -33,7 +34,12 @@ export function OrdersScreen() {
         kicker="Pedidos"
         title="Pedidos"
         subtitle="Confira o que foi vendido: SKU, quantidade, comprador e foto de cada item."
-        action={<RefreshButton action={handleRefresh} />}
+        action={
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <LastSyncedInfo lastSuccessAt={data?.lastSuccessAt ?? null} />
+            <RefreshButton action={handleRefresh} />
+          </Stack>
+        }
       />
       <SectionPanel dense>
         {isPending ? (
@@ -43,7 +49,7 @@ export function OrdersScreen() {
             ))}
           </Stack>
         ) : (
-          <OrdersList orders={data ?? []} />
+          <OrdersList orders={data?.orders ?? []} />
         )}
       </SectionPanel>
     </Stack>

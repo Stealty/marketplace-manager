@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type { MarketplaceType, ReputationMetric } from '@/types/database';
 import { syncReputation } from '@/services/sync/reputationSync';
-import { ensureFresh } from '@/lib/sync/freshness';
+import { ensureFresh, getLastSuccessAt } from '@/lib/sync/freshness';
 import { getCurrentUserOrgIds } from '@/services/organizationService';
 
 export interface ReputationMetricWithRelations extends ReputationMetric {
@@ -34,4 +34,16 @@ export async function getReputationMetrics(): Promise<ReputationMetricWithRelati
   }
 
   return Array.from(latestByConnection.values());
+}
+
+export async function getReputationLastSyncedAt(): Promise<string | null> {
+  const supabase = await createClient();
+  const orgIds = await getCurrentUserOrgIds();
+
+  const { data: connections } = await supabase
+    .from('marketplace_connections')
+    .select('*')
+    .in('org_id', orgIds);
+
+  return getLastSuccessAt(supabase, connections ?? [], 'reputation');
 }

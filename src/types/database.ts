@@ -44,8 +44,9 @@ export interface SyncState {
   id: string;
   org_id: string;
   marketplace_connection_id: string;
-  resource: 'orders' | 'questions' | 'listings' | 'reputation';
+  resource: 'orders' | 'questions' | 'listings' | 'reputation' | 'profile';
   last_synced_at: string | null;
+  last_success_at: string | null;
   last_status: string | null;
   last_error: string | null;
 }

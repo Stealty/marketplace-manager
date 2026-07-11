@@ -20,6 +20,75 @@ export const SYNC_TTL_MINUTES = {
 
 export type SyncResource = keyof typeof SYNC_TTL_MINUTES;
 
+// Grava o resultado de uma tentativa de sync. last_synced_at marca toda
+// tentativa (usado por isStale/ensureFresh para decidir quando tentar de
+// novo); last_success_at só avança quando status !== 'error', preservando o
+// momento do último sync que realmente trouxe dados novos mesmo que
+// tentativas posteriores falhem.
+export async function upsertSyncState(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  resource: SyncResource,
+  jobType: string,
+  status: 'ok' | 'error' | 'partial',
+  error?: string
+): Promise<void> {
+  const now = new Date().toISOString();
+  await supabase.from('sync_state').upsert(
+    {
+      org_id: connection.org_id,
+      marketplace_connection_id: connection.id,
+      resource,
+      last_synced_at: now,
+      last_status: status,
+      last_error: error ?? null,
+      ...(status !== 'error' ? { last_success_at: now } : {}),
+    },
+    { onConflict: 'marketplace_connection_id,resource' }
+  );
+
+  await supabase.from('sync_jobs').insert({
+    org_id: connection.org_id,
+    marketplace_connection_id: connection.id,
+    job_type: jobType,
+    status: status === 'error' ? 'failed' : 'done',
+    payload: error ? { error } : {},
+  });
+}
+
+// Menor last_success_at entre as conexões ML conectadas de um recurso — se
+// alguma conta nunca sincronizou ou está com a conexão fora de 'connected',
+// trata como "nunca sincronizado" em vez de ignorá-la silenciosamente (não dá
+// pra garantir que os dados exibidos incluem aquela conta).
+export async function getLastSuccessAt(
+  supabase: SupabaseClient,
+  connections: MarketplaceConnection[],
+  resource: SyncResource
+): Promise<string | null> {
+  const mlConnections = connections.filter(
+    (c) => c.marketplace === 'mercado_livre' && c.status === 'connected'
+  );
+  if (mlConnections.length === 0) return null;
+
+  const { data: syncStates } = await supabase
+    .from('sync_state')
+    .select('marketplace_connection_id, last_success_at')
+    .eq('resource', resource)
+    .in(
+      'marketplace_connection_id',
+      mlConnections.map((c) => c.id)
+    );
+
+  const lastSuccessByConnection = new Map<string, string | null>(
+    (syncStates ?? []).map((s) => [s.marketplace_connection_id, s.last_success_at])
+  );
+
+  const timestamps = mlConnections.map((c) => lastSuccessByConnection.get(c.id) ?? null);
+  if (timestamps.some((t) => t === null)) return null;
+
+  return (timestamps as string[]).reduce((oldest, t) => (new Date(t) < new Date(oldest) ? t : oldest));
+}
+
 // Cache-aside: a tela sempre renderiza com o que já existe localmente e
 // dispara o sync em background via `after()` — nunca bloqueia a resposta,
 // nem na primeiríssima sincronização de uma conexão (sem isso, a primeira

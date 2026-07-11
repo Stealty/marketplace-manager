@@ -4,14 +4,15 @@ import { SectionPanel } from '@/components/SectionPanel';
 import { EmptyState } from '@/components/EmptyState';
 import { RefreshButton } from '@/components/RefreshButton';
 import { IndicatorCard } from '@/components/IndicatorCard';
+import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
-import { getReputationMetrics } from '@/services/reputationService';
+import { getReputationMetrics, getReputationLastSyncedAt } from '@/services/reputationService';
 import { refreshReputation } from './actions';
 
 const percent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 });
 
 export default async function ReputacaoPage() {
-  const metrics = await getReputationMetrics();
+  const [metrics, lastSuccessAt] = await Promise.all([getReputationMetrics(), getReputationLastSyncedAt()]);
 
   return (
     <Stack spacing={3}>
@@ -19,7 +20,12 @@ export default async function ReputacaoPage() {
         kicker="Qualidade"
         title="Reputação"
         subtitle="Nível e indicadores de reputação em todas as contas de marketplace conectadas."
-        action={<RefreshButton action={refreshReputation} />}
+        action={
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <LastSyncedInfo lastSuccessAt={lastSuccessAt} />
+            <RefreshButton action={refreshReputation} />
+          </Stack>
+        }
       />
 
       <SectionPanel>

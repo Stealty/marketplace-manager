@@ -5,10 +5,16 @@ import { createClient } from '@/lib/supabase/server';
 import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import { syncAllOrders } from '@/services/sync/ordersSync';
 import { syncAllConnectionProfiles } from '@/services/sync/connectionProfileSync';
-import { getOrders, type OrderWithRelations } from '@/services/ordersService';
+import { getOrders, getOrdersLastSyncedAt, type OrderWithRelations } from '@/services/ordersService';
 
-export async function getOrdersData(): Promise<OrderWithRelations[]> {
-  return getOrders();
+export interface OrdersData {
+  orders: OrderWithRelations[];
+  lastSuccessAt: string | null;
+}
+
+export async function getOrdersData(): Promise<OrdersData> {
+  const [orders, lastSuccessAt] = await Promise.all([getOrders(), getOrdersLastSyncedAt()]);
+  return { orders, lastSuccessAt };
 }
 
 export async function refreshOrders(): Promise<{ error?: string }> {

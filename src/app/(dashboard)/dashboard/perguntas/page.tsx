@@ -1,10 +1,14 @@
 import { Stack } from '@mui/material';
 import { PageHeader } from '@/components/PageHeader';
-import { getQuestionThreads } from '@/services/questionsService';
+import { LastSyncedInfo } from '@/components/LastSyncedInfo';
+import { getQuestionThreads, getQuestionsLastSyncedAt } from '@/services/questionsService';
 import { ThreadList } from './thread-list';
 
 export default async function PerguntasPage() {
-  const threads = await getQuestionThreads();
+  const [threads, lastSuccessAt] = await Promise.all([
+    getQuestionThreads(),
+    getQuestionsLastSyncedAt(),
+  ]);
 
   return (
     <Stack spacing={3}>
@@ -12,6 +16,7 @@ export default async function PerguntasPage() {
         kicker="Atendimento"
         title="Perguntas"
         subtitle="Perguntas de compradores em todas as contas conectadas, priorizando as pendentes."
+        action={<LastSyncedInfo lastSuccessAt={lastSuccessAt} />}
       />
       <ThreadList threads={threads} />
     </Stack>

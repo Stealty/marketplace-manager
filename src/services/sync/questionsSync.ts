@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchQuestions, type MercadoLivreQuestion } from '@/lib/mercadolivre/client';
+import { upsertSyncState } from '@/lib/sync/freshness';
 import type { MarketplaceConnection } from '@/types/database';
 
 export async function syncAllQuestions(supabase: SupabaseClient): Promise<void> {
@@ -15,33 +16,6 @@ export async function syncAllQuestions(supabase: SupabaseClient): Promise<void> 
   for (const connection of connections ?? []) {
     await syncQuestions(supabase, connection);
   }
-}
-
-async function upsertSyncState(
-  supabase: SupabaseClient,
-  connection: MarketplaceConnection,
-  status: 'ok' | 'error',
-  error?: string
-) {
-  await supabase.from('sync_state').upsert(
-    {
-      org_id: connection.org_id,
-      marketplace_connection_id: connection.id,
-      resource: 'questions',
-      last_synced_at: new Date().toISOString(),
-      last_status: status,
-      last_error: error ?? null,
-    },
-    { onConflict: 'marketplace_connection_id,resource' }
-  );
-
-  await supabase.from('sync_jobs').insert({
-    org_id: connection.org_id,
-    marketplace_connection_id: connection.id,
-    job_type: 'sync_questions',
-    status: status === 'ok' ? 'done' : 'failed',
-    payload: error ? { error } : {},
-  });
 }
 
 async function upsertQuestion(
@@ -129,9 +103,16 @@ export async function syncQuestions(
     for (const question of questions) {
       await upsertQuestion(supabase, connection, question);
     }
-    await upsertSyncState(supabase, connection, 'ok');
+    await upsertSyncState(supabase, connection, 'questions', 'sync_questions', 'ok');
   } catch (error) {
-    await upsertSyncState(supabase, connection, 'error', (error as Error).message);
+    await upsertSyncState(
+      supabase,
+      connection,
+      'questions',
+      'sync_questions',
+      'error',
+      (error as Error).message
+    );
     throw error;
   }
 }

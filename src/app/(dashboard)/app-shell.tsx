@@ -5,15 +5,19 @@ import { AppBar, Box, Drawer, IconButton, Toolbar, Typography, useMediaQuery, us
 import MenuIcon from '@mui/icons-material/Menu';
 import { NavList } from './nav-list';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemePresetToggle } from '@/components/ThemePresetToggle';
 import { LogoutButton } from '@/components/LogoutButton';
+import { ExpiredConnectionsBanner, type ExpiredConnectionInfo } from './expired-connections-banner';
 
 const SIDEBAR_WIDTH = 240;
 
 export function AppShell({
   userEmail,
+  expiredConnections,
   children,
 }: {
   userEmail: string | null;
+  expiredConnections: ExpiredConnectionInfo[];
   children: React.ReactNode;
 }) {
   const theme = useTheme();
@@ -46,11 +50,16 @@ export function AppShell({
         <Box
           component="nav"
           sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
             width: SIDEBAR_WIDTH,
+            height: '100dvh',
             flexShrink: 0,
             borderRight: '1px solid',
             borderColor: 'divider',
             bgcolor: 'background.paper',
+            zIndex: (theme) => theme.zIndex.appBar + 1,
           }}
         >
           {sidebarContent}
@@ -61,13 +70,19 @@ export function AppShell({
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
           ModalProps={{ keepMounted: true }}
-          sx={{ '& .MuiDrawer-paper': { width: SIDEBAR_WIDTH } }}
+          sx={{
+            '& .MuiDrawer-paper': {
+              width: SIDEBAR_WIDTH,
+              height: 'auto',
+              maxHeight: '100dvh',
+            },
+          }}
         >
           {sidebarContent}
         </Drawer>
       )}
 
-      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+      <Box sx={{ flexGrow: 1, minWidth: 0, ...(isDesktop && { ml: `${SIDEBAR_WIDTH}px` }) }}>
         <AppBar position="static" color="transparent">
           <Toolbar sx={{ justifyContent: 'space-between', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -85,11 +100,13 @@ export function AppShell({
               <Typography variant="body2" color="text.secondary" noWrap>
                 {userEmail}
               </Typography>
+              <ThemePresetToggle />
               <ThemeToggle />
             </Box>
           </Toolbar>
         </AppBar>
         <Box component="main" sx={{ p: { xs: 2, sm: 3 } }}>
+          <ExpiredConnectionsBanner connections={expiredConnections} />
           {children}
         </Box>
       </Box>
