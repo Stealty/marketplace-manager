@@ -260,6 +260,10 @@ export async function fetchSellerNickname(
 // Formato confirmado a partir de uma resposta real de /orders/search (ver
 // histórico do console.log de depuração) — `buyer` e `seller` sempre vêm
 // preenchidos com `id`/`nickname` nos pedidos observados.
+// NOTE: `sale_fee` (comissão do ML para aquele item específico) presente na
+// resposta segundo conhecimento geral da API — revalidar contra a doc atual
+// do Mercado Livre Developers (usar o console.log de fetchOrders abaixo para
+// conferir contra uma resposta real) antes de confiar neste valor em produção.
 export interface MercadoLivreOrder {
   id: number;
   status: string;
@@ -272,6 +276,7 @@ export interface MercadoLivreOrder {
     item: { id: string; title: string };
     quantity: number;
     unit_price: number;
+    sale_fee?: number;
   }[];
 }
 

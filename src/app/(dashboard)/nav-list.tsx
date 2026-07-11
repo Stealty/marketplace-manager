@@ -10,6 +10,7 @@ import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import CableOutlinedIcon from '@mui/icons-material/CableOutlined';
 import StarOutlineOutlinedIcon from '@mui/icons-material/StarOutlineOutlined';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Visão geral', icon: SpaceDashboardOutlinedIcon },
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/frete', label: 'Frete', icon: LocalShippingOutlinedIcon },
   { href: '/dashboard/anuncios', label: 'Anúncios', icon: StorefrontOutlinedIcon },
   { href: '/dashboard/pedidos', label: 'Pedidos', icon: ReceiptLongOutlinedIcon },
+  { href: '/dashboard/lucratividade', label: 'Lucratividade', icon: TrendingUpOutlinedIcon },
   { href: '/dashboard/reputacao', label: 'Reputação', icon: StarOutlineOutlinedIcon },
   { href: '/dashboard/conexoes', label: 'Conexões', icon: CableOutlinedIcon },
 ];

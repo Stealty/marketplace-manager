@@ -134,6 +134,7 @@ async function upsertOrder(
         title: item.item.title,
         quantity: item.quantity,
         unit_price: item.unit_price,
+        sale_fee: item.sale_fee ?? null,
       })),
       { onConflict: 'order_id,sku' }
     );

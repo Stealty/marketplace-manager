@@ -89,6 +89,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: number | null;
   conferido: boolean;
+  sale_fee: number | null;
 }
 
 export interface Product {
@@ -100,6 +101,7 @@ export interface Product {
   package_height_cm: number | null;
   package_width_cm: number | null;
   package_length_cm: number | null;
+  unit_cost: number | null;
   created_at: string;
 }
 
