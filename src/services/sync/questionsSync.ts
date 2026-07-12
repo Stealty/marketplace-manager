@@ -18,12 +18,24 @@ export async function syncAllQuestions(supabase: SupabaseClient): Promise<void> 
   }
 }
 
+// Perguntas banidas/removidas/desativadas pelo ML voltam com `text` vazio por
+// moderação — não é um pedido pendente de resposta real, então não deve
+// aparecer na fila de pendências como se fosse um problema de sync. UNDER_REVIEW
+// fica como 'pending': a pergunta ainda está visível e pode ser respondida
+// normalmente enquanto a revisão corre.
+const BLOCKED_QUESTION_STATUSES = new Set(['BANNED', 'DELETED', 'DISABLED']);
+
+function resolveThreadStatus(question: MercadoLivreQuestion): 'answered' | 'pending' | 'removed' {
+  if (BLOCKED_QUESTION_STATUSES.has(question.status)) return 'removed';
+  return question.answer ? 'answered' : 'pending';
+}
+
 async function upsertQuestion(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
   question: MercadoLivreQuestion
 ) {
-  const isAnswered = Boolean(question.answer);
+  const status = resolveThreadStatus(question);
 
   // Resposta enviada pela própria UI (answerThread) grava o estado local
   // antes do ML propagar internamente em /questions/search — se o snapshot
@@ -37,7 +49,7 @@ async function upsertQuestion(
     .eq('external_thread_id', String(question.id))
     .maybeSingle();
 
-  if (!isAnswered && existingThread?.status === 'answered') return;
+  if (status !== 'answered' && existingThread?.status === 'answered') return;
 
   const { data: listing } = await supabase
     .from('product_listings')
@@ -55,7 +67,7 @@ async function upsertQuestion(
         product_listing_id: listing?.id ?? null,
         external_thread_id: String(question.id),
         question_text: question.text,
-        status: isAnswered ? 'answered' : 'pending',
+        status,
         last_message_at: question.answer?.date_created ?? question.date_created,
         answered_at: question.answer?.date_created ?? null,
       },
@@ -65,6 +77,10 @@ async function upsertQuestion(
     .single();
 
   if (error) throw error;
+
+  // Pergunta removida/banida sem texto — não grava chat_messages vazio
+  // (upsert exigiria `body` para uma mensagem que nunca existiu de fato).
+  if (status === 'removed' && !question.text) return;
 
   const messages = [
     {

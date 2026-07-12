@@ -15,7 +15,6 @@ import {
 } from '@mui/material';
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { StatusTag } from '@/components/StatusTag';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import type { ClaimReturnReviewAction } from '@/lib/mercadolivre/client';
 import type { ClaimWithRelations } from '@/services/claimsService';
 import { reviewReturn, sendClaimReply } from './actions';
@@ -164,7 +163,7 @@ export function ClaimDetailDrawer({
       title={`Reclamação ${claim.external_claim_id}`}
       subtitle={
         claim.marketplace_connections
-          ? MARKETPLACE_LABELS[claim.marketplace_connections.marketplace]
+          ? claim.marketplace_connections.seller_nickname ?? claim.marketplace_connections.label
           : undefined
       }
     >

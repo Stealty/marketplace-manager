@@ -86,7 +86,17 @@ async function upsertOrder(
   listingIdByExternalId: Map<string, string>
 ) {
   const shipment = mlOrder.shipping?.id ? shipments.get(mlOrder.shipping.id) : undefined;
+  // `cost`: quanto o comprador paga pelo frete (0 = frete grátis pro
+  // comprador) — segue sendo a base do indicador is_free_shipping.
   const freightValue = shipment?.shipping_option?.cost ?? null;
+  // Estimativa best-effort do custo de frete absorvido pelo VENDEDOR (ver
+  // NOTE em MercadoLivreShipment e na migration 0013): a diferença entre o
+  // valor "cheio" do frete e o que o comprador de fato pagou. Sem list_cost
+  // na resposta, fica null (não confunde com "vendedor não paga nada").
+  const freightCostSeller =
+    shipment?.shipping_option?.list_cost !== undefined && shipment?.shipping_option?.cost !== undefined
+      ? Math.max(shipment.shipping_option.list_cost - shipment.shipping_option.cost, 0)
+      : null;
 
   const { data: order, error } = await supabase
     .from('orders')
@@ -98,6 +108,7 @@ async function upsertOrder(
         status: mlOrder.status,
         order_value: mlOrder.total_amount,
         freight_value: freightValue,
+        freight_cost_seller: freightCostSeller,
         is_free_shipping: freightValue === 0,
         ordered_at: mlOrder.date_created,
         buyer_nickname: mlOrder.buyer?.nickname ?? null,

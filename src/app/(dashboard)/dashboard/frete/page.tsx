@@ -35,6 +35,12 @@ export default async function FretePage() {
 
   const totalFreight = orders.reduce((sum, order) => sum + (order.freight_value ?? 0), 0);
 
+  // freight_value reflete o que o COMPRADOR pagou pelo frete (0 em pedidos com
+  // frete grátis) — não é o custo que o vendedor efetivamente absorve. Ver
+  // NOTE em ordersSync.ts/migration 0013 para a estimativa usada aqui.
+  const ordersWithSellerFreightCost = orders.filter((order) => order.freight_cost_seller !== null);
+  const totalSellerFreightCost = orders.reduce((sum, order) => sum + (order.freight_cost_seller ?? 0), 0);
+
   const chartData = BUCKETS.map((bucket) => ({
     bucket: bucket.label,
     count: withRatio.filter(
@@ -67,7 +73,21 @@ export default async function FretePage() {
           value={freeShippingPct !== null ? `${freeShippingPct.toFixed(0)}%` : '—'}
           tone="accent"
         />
-        <IndicatorCard label="Frete total no período" value={currency.format(totalFreight)} tone="neutral" />
+        <IndicatorCard
+          label="Frete pago pelo comprador no período"
+          value={currency.format(totalFreight)}
+          tone="neutral"
+        />
+        <IndicatorCard
+          label="Frete absorvido pelo vendedor no período"
+          value={currency.format(totalSellerFreightCost)}
+          tone={totalSellerFreightCost > 0 ? 'warning' : 'neutral'}
+          helperText={
+            ordersWithSellerFreightCost.length < orders.length
+              ? `${orders.length - ordersWithSellerFreightCost.length} pedido(s) sem custo de frete sincronizado`
+              : undefined
+          }
+        />
       </Stack>
 
       <SectionPanel kicker="Distribuição" title="% Frete por faixa">

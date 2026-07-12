@@ -16,7 +16,6 @@ import {
 } from '@mui/material';
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { ExternalLinkButton } from '@/components/ExternalLinkButton';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import type { QuestionThreadWithRelations } from '@/services/questionsService';
 import { answerThread } from './actions';
 
@@ -94,15 +93,19 @@ export function ThreadDetailDrawer({
   if (!thread) return null;
 
   const isPending = thread.status === 'pending';
+  const isRemoved = thread.status === 'removed';
 
   return (
     <DetailDrawer
       open={Boolean(thread)}
       onClose={onClose}
-      title={thread.question_text?.trim() || 'Pergunta sem texto sincronizado'}
+      title={
+        thread.question_text?.trim() ||
+        (isRemoved ? 'Pergunta removida/moderada pelo Mercado Livre' : 'Pergunta sem texto sincronizado')
+      }
       subtitle={
         thread.marketplace_connections
-          ? MARKETPLACE_LABELS[thread.marketplace_connections.marketplace]
+          ? thread.marketplace_connections.seller_nickname ?? thread.marketplace_connections.label
           : undefined
       }
     >

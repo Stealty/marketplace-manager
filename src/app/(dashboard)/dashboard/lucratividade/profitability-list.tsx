@@ -30,7 +30,7 @@ const ORDENACAO_OPTIONS: { value: Ordenacao; label: string }[] = [
 ];
 
 function toProfitabilityRow(item: OrderWithRelations['order_items'][number], order: OrderWithRelations): ProfitabilityRow {
-  return { ...item, order, ...computeItemProfitability(item) };
+  return { ...item, order, ...computeItemProfitability(item, order) };
 }
 
 export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) {

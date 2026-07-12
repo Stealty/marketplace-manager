@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import {
-  Box,
   Table,
   TableBody,
   TableCell,
@@ -30,6 +29,8 @@ export interface DataListProps<T> {
   onRowClick?: (row: T) => void;
   emptyMessage: string;
   defaultSort?: { columnId: string; direction: 'asc' | 'desc' };
+  /** Bounds the table to this height and makes it scroll internally, with the column headers pinned to the top of that scroll area. Omit to let the table grow with its content. */
+  maxHeight?: number | string;
 }
 
 function compareValues(a: string | number | null, b: string | number | null): number {
@@ -47,6 +48,7 @@ export function DataList<T>({
   onRowClick,
   emptyMessage,
   defaultSort,
+  maxHeight,
 }: DataListProps<T>) {
   const [sort, setSort] = React.useState(defaultSort ?? null);
 
@@ -71,46 +73,49 @@ export function DataList<T>({
   }
 
   return (
-    <TableContainer>
-      <Box sx={{ overflowX: 'auto' }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
+    <TableContainer sx={maxHeight !== undefined ? { maxHeight, overflow: 'auto' } : undefined}>
+      <Table size="small" stickyHeader={maxHeight !== undefined}>
+        <TableHead>
+          <TableRow>
+            {columns.map((column) => (
+              <TableCell
+                key={column.id}
+                align={column.align}
+                width={column.width}
+                sx={maxHeight !== undefined ? { bgcolor: 'background.paper' } : undefined}
+              >
+                {column.sortable ? (
+                  <TableSortLabel
+                    active={sort?.columnId === column.id}
+                    direction={sort?.columnId === column.id ? sort.direction : 'asc'}
+                    onClick={() => handleSort(column.id)}
+                  >
+                    {column.label}
+                  </TableSortLabel>
+                ) : (
+                  column.label
+                )}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {sortedRows.map((row) => (
+            <TableRow
+              key={getRowId(row)}
+              hover={Boolean(onRowClick)}
+              onClick={() => onRowClick?.(row)}
+              sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
+            >
               {columns.map((column) => (
-                <TableCell key={column.id} align={column.align} width={column.width}>
-                  {column.sortable ? (
-                    <TableSortLabel
-                      active={sort?.columnId === column.id}
-                      direction={sort?.columnId === column.id ? sort.direction : 'asc'}
-                      onClick={() => handleSort(column.id)}
-                    >
-                      {column.label}
-                    </TableSortLabel>
-                  ) : (
-                    column.label
-                  )}
+                <TableCell key={column.id} align={column.align}>
+                  {column.render(row)}
                 </TableCell>
               ))}
             </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortedRows.map((row) => (
-              <TableRow
-                key={getRowId(row)}
-                hover={Boolean(onRowClick)}
-                onClick={() => onRowClick?.(row)}
-                sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
-              >
-                {columns.map((column) => (
-                  <TableCell key={column.id} align={column.align}>
-                    {column.render(row)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Box>
+          ))}
+        </TableBody>
+      </Table>
     </TableContainer>
   );
 }

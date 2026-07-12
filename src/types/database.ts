@@ -73,6 +73,7 @@ export interface Order {
   order_value: number | null;
   freight_value: number | null;
   freight_ratio: number | null;
+  freight_cost_seller: number | null;
   is_free_shipping: boolean;
   ordered_at: string | null;
   buyer_nickname: string | null;

@@ -1,13 +1,29 @@
 'use client';
 
-import { IconButton, Stack, Typography } from '@mui/material';
+import { Avatar, IconButton, Stack, Typography } from '@mui/material';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { StatusTag } from '@/components/StatusTag';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import type { OrderWithRelations } from '@/services/ordersService';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  confirmed: 'Confirmado',
+  payment_required: 'Aguardando pagamento',
+  payment_in_process: 'Pagamento em processamento',
+  paid: 'Pago',
+  partially_paid: 'Parcialmente pago',
+  partially_refunded: 'Parcialmente reembolsado',
+  pending_cancel: 'Cancelamento pendente',
+  cancelled: 'Cancelado',
+  invalid: 'Inválido',
+};
+
+function translateOrderStatus(status: string): string {
+  return ORDER_STATUS_LABELS[status] ?? status;
+}
 
 export function OrderDetailDrawer({
   order,
@@ -18,6 +34,9 @@ export function OrderDetailDrawer({
 }) {
   if (!order) return null;
 
+  const mainImage =
+    order.order_items.find((item) => item.product_listings?.image_url)?.product_listings?.image_url ?? null;
+
   return (
     <DetailDrawer
       open={Boolean(order)}
@@ -25,16 +44,25 @@ export function OrderDetailDrawer({
       title={`Pedido ${order.external_order_id}`}
       subtitle={
         order.marketplace_connections
-          ? MARKETPLACE_LABELS[order.marketplace_connections.marketplace]
+          ? order.marketplace_connections.seller_nickname ?? order.marketplace_connections.label
           : undefined
       }
     >
       <Stack spacing={2.5}>
+        <Avatar
+          src={mainImage ?? undefined}
+          variant="rounded"
+          alt="Produto"
+          sx={{ width: 160, height: 160, alignSelf: 'center' }}
+        >
+          <Inventory2OutlinedIcon sx={{ fontSize: 48 }} />
+        </Avatar>
+
         <Stack direction="row" justifyContent="space-between">
           <Typography variant="caption" color="text.secondary">
             Status
           </Typography>
-          {order.status && <StatusTag label={order.status} tone="neutral" />}
+          {order.status && <StatusTag label={translateOrderStatus(order.status)} tone="neutral" />}
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">

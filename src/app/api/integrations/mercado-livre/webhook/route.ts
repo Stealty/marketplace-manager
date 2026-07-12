@@ -4,14 +4,20 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { syncOrders } from '@/services/sync/ordersSync';
 import { syncListings } from '@/services/sync/listingsSync';
 import { syncQuestions } from '@/services/sync/questionsSync';
+import { syncClaims } from '@/services/sync/claimsSync';
 import type { MarketplaceConnection } from '@/types/database';
 
 // Nome exato de cada tópico pode variar por versão da API do ML (orders_v2 é
 // o atual no momento em que isso foi escrito) — conferir no painel de
-// notificações do app.
+// notificações do app. `claims`/`post_purchase` precisam estar habilitados
+// nas notificações do app no painel de developers do ML para chegar aqui —
+// sem isso, reclamações só atualizam pelo polling de tela (ensureFresh) ou
+// pelo fullSync agendado, o que pode atrasar a visibilidade de um prazo de
+// mediação/devolução.
 const ORDER_TOPICS = new Set(['orders_v2', 'orders']);
 const ITEM_TOPICS = new Set(['items']);
 const QUESTION_TOPICS = new Set(['questions']);
+const CLAIM_TOPICS = new Set(['claims', 'post_purchase']);
 
 interface MercadoLivreNotification {
   topic?: string;
@@ -34,6 +40,8 @@ export async function POST(request: NextRequest) {
       after(() => syncForExternalAccount(externalAccountId, syncListings));
     } else if (QUESTION_TOPICS.has(body.topic)) {
       after(() => syncForExternalAccount(externalAccountId, syncQuestions));
+    } else if (CLAIM_TOPICS.has(body.topic)) {
+      after(() => syncForExternalAccount(externalAccountId, syncClaims));
     }
   }
 

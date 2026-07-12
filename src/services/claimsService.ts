@@ -7,7 +7,7 @@ import { getCurrentUserOrgIds } from '@/services/organizationService';
 
 export interface ClaimWithRelations extends Claim {
   orders: { external_order_id: string } | null;
-  marketplace_connections: { label: string; marketplace: MarketplaceType } | null;
+  marketplace_connections: { label: string; marketplace: MarketplaceType; seller_nickname: string | null } | null;
   claim_messages: ClaimMessage[];
 }
 
@@ -29,7 +29,7 @@ export async function getClaims(): Promise<ClaimWithRelations[]> {
   const { data, error } = await supabase
     .from('claims')
     .select(
-      '*, orders(external_order_id), marketplace_connections(label, marketplace), claim_messages(*)'
+      '*, orders(external_order_id), marketplace_connections(label, marketplace, seller_nickname), claim_messages(*)'
     )
     .order('last_updated', { ascending: false, nullsFirst: false })
     .returns<ClaimWithRelations[]>();

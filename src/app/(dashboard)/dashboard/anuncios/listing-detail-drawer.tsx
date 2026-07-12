@@ -6,7 +6,6 @@ import { DetailDrawer } from '@/components/DetailDrawer';
 import { ExternalLinkButton } from '@/components/ExternalLinkButton';
 import { InlineEditableValue } from '@/components/InlineEditableValue';
 import { StatusTag } from '@/components/StatusTag';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import type { ProductListingWithRelations } from '@/services/listingsService';
 import { toggleListingStatus, updateListingPrice, updateListingStock } from './actions';
 
@@ -53,7 +52,7 @@ export function ListingDetailDrawer({
       title={listing.title ?? listing.products?.title ?? 'Anúncio'}
       subtitle={
         listing.marketplace_connections
-          ? `${MARKETPLACE_LABELS[listing.marketplace_connections.marketplace]} · ${listing.products?.sku ?? '—'}`
+          ? `${listing.marketplace_connections.seller_nickname ?? listing.marketplace_connections.label} · ${listing.products?.sku ?? '—'}`
           : listing.products?.sku
       }
     >

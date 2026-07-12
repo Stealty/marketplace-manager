@@ -285,6 +285,13 @@ export interface MercadoLivreOrdersSearchResponse {
   paging: { total: number; offset: number; limit: number };
 }
 
+// NOTE: /orders/search pagina em no máximo 50 resultados por página (mesmo
+// pedindo `limit` maior) e não tem paginação via search_type=scan/scroll_id
+// como /items/search e /questions/search — por isso o teto aqui é o mesmo
+// OFFSET_PAGINATION_LIMIT (1000) usado nos outros recursos, sem fallback de
+// scroll. Contas com mais de 1000 pedidos no histórico da conexão vão parar
+// de sincronizar pedidos mais antigos que isso; revalidar se isso vira um
+// caso real (a saída seria paginar por janela de `order.date_created.to`).
 export async function fetchOrders(
   supabase: SupabaseClient,
   connection: MarketplaceConnection
@@ -293,18 +300,42 @@ export async function fetchOrders(
   const sellerId = connection.external_account_id;
   if (!sellerId) throw new Error(`Conexão ${connection.id} não tem external_account_id (seller id)`);
 
-  const response = await mlFetch(`/orders/search?seller=${sellerId}&sort=date_desc`, accessToken);
-  const data: MercadoLivreOrdersSearchResponse = await response.json();
-  console.log('[mercadolivre] fetchOrders ->', JSON.stringify(data, null, 2));
-  return data.results ?? [];
+  const orders: MercadoLivreOrder[] = [];
+  const limit = 50;
+  let offset = 0;
+
+  while (offset < OFFSET_PAGINATION_LIMIT) {
+    const response = await mlFetch(
+      `/orders/search?seller=${sellerId}&sort=date_desc&limit=${limit}&offset=${offset}`,
+      accessToken
+    );
+    const data: MercadoLivreOrdersSearchResponse = await response.json();
+    const results = data.results ?? [];
+    orders.push(...results);
+
+    const total = data.paging?.total;
+    offset += limit;
+    if (results.length === 0) return orders;
+    if (total !== undefined ? offset >= total : results.length < limit) return orders;
+  }
+
+  console.warn(
+    `[mercadolivre] fetchOrders: conexão ${connection.id} tem mais de ${OFFSET_PAGINATION_LIMIT} pedidos — ` +
+      'pedidos mais antigos que esse teto não são sincronizados (ver NOTE em fetchOrders).'
+  );
+  return orders;
 }
 
 // NOTE: schema de /shipments/{id} varia por tipo de envio (mercado envios
 // full, flex, correios, retirada em loja) — revalidar contra a doc atual do
 // Mercado Livre Developers antes de confiar nos nomes de campo abaixo.
+// `cost` = quanto o COMPRADOR paga pelo frete (0 em anúncios com frete
+// grátis); `list_cost` = valor "cheio" do frete sem descontos/subsídio. A
+// diferença entre os dois é o que ordersSync.ts usa como estimativa do custo
+// de frete absorvido pelo vendedor (ver freight_cost_seller em ordersSync.ts).
 export interface MercadoLivreShipment {
   id: number;
-  shipping_option?: { cost?: number; list_cost?: number };
+  shipping_option?: { cost?: number; list_cost?: number; base_cost?: number };
 }
 
 export async function fetchShipment(
@@ -417,11 +448,24 @@ export function extractSellerSku(item: MercadoLivreItem): string | null {
 
 // NOTE: filtro/paginação de /questions/search conferidos com conhecimento
 // geral da API — revalidar contra a doc atual do Mercado Livre Developers.
+// `status` documentado: ANSWERED, UNANSWERED, CLOSED_UNANSWERED, UNDER_REVIEW,
+// BANNED, DELETED, DISABLED. Perguntas BANNED/DELETED/DISABLED voltam com
+// `text` vazio por moderação do próprio ML (não é falha de sync) — ver
+// mapeamento em questionsSync.ts.
+export type MercadoLivreQuestionStatus =
+  | 'ANSWERED'
+  | 'UNANSWERED'
+  | 'CLOSED_UNANSWERED'
+  | 'UNDER_REVIEW'
+  | 'BANNED'
+  | 'DELETED'
+  | 'DISABLED';
+
 export interface MercadoLivreQuestion {
   id: number;
   item_id: string;
   text: string;
-  status: string;
+  status: MercadoLivreQuestionStatus | string;
   date_created: string;
   answer?: { text: string; date_created: string } | null;
 }

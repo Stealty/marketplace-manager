@@ -6,7 +6,7 @@ import { getCurrentUserOrgIds } from '@/services/organizationService';
 
 export interface ProductListingWithRelations extends ProductListing {
   products: { sku: string; title: string } | null;
-  marketplace_connections: { label: string; marketplace: MarketplaceType } | null;
+  marketplace_connections: { label: string; marketplace: MarketplaceType; seller_nickname: string | null } | null;
 }
 
 export async function getProductListings(): Promise<ProductListingWithRelations[]> {
@@ -21,7 +21,7 @@ export async function getProductListings(): Promise<ProductListingWithRelations[
 
   const { data, error } = await supabase
     .from('product_listings')
-    .select('*, products(sku, title), marketplace_connections(label, marketplace)')
+    .select('*, products(sku, title), marketplace_connections(label, marketplace, seller_nickname)')
     .order('created_at', { ascending: false })
     .returns<ProductListingWithRelations[]>();
 

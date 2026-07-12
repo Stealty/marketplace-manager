@@ -90,23 +90,41 @@ export const PROFITABILITY_COLUMNS: DataListColumn<ProfitabilityRow>[] = [
     render: (row) => currency.format(row.vendaBruta),
   },
   {
+    id: 'frete',
+    label: 'Frete (vendedor)',
+    align: 'right',
+    render: (row) =>
+      row.freightCostKnown ? (
+        currency.format(row.freightCost)
+      ) : (
+        <Tooltip title="Custo de frete absorvido pelo vendedor ainda não sincronizado para este pedido — não descontado do repasse.">
+          <Typography variant="body2" color="text.secondary" sx={{ textDecoration: 'underline dotted' }}>
+            —
+          </Typography>
+        </Tooltip>
+      ),
+  },
+  {
     id: 'repasse',
     label: 'Repasse',
     align: 'right',
-    render: (row) => (
-      <Stack spacing={0.25} alignItems="flex-end">
-        {row.repasseFeeKnown ? (
-          <Typography variant="body2">{currency.format(row.repasse)}</Typography>
-        ) : (
-          <Tooltip title="Tarifa do marketplace ainda não sincronizada para este item — valor exibido é a venda bruta, sem desconto de comissão.">
-            <Typography variant="body2" sx={{ textDecoration: 'underline dotted' }}>
-              {currency.format(row.repasse)}
-            </Typography>
-          </Tooltip>
-        )}
-        {row.order.status && <StatusTag label={row.order.status} tone="neutral" />}
-      </Stack>
-    ),
+    render: (row) => {
+      const algumaTaxaDesconhecida = !row.repasseFeeKnown || !row.freightCostKnown;
+      return (
+        <Stack spacing={0.25} alignItems="flex-end">
+          {!algumaTaxaDesconhecida ? (
+            <Typography variant="body2">{currency.format(row.repasse)}</Typography>
+          ) : (
+            <Tooltip title="Comissão e/ou custo de frete ainda não sincronizados para este item — valor exibido pode não descontar todas as tarifas.">
+              <Typography variant="body2" sx={{ textDecoration: 'underline dotted' }}>
+                {currency.format(row.repasse)}
+              </Typography>
+            </Tooltip>
+          )}
+          {row.order.status && <StatusTag label={row.order.status} tone="neutral" />}
+        </Stack>
+      );
+    },
   },
   {
     id: 'custo_unit',

@@ -89,7 +89,7 @@ export default async function DashboardPage() {
 
   // --- Financeiro (mesmo cálculo da tela Lucratividade, período de 30 dias) ---
   const itemsLast30Days = ordersLast30Days.flatMap((order) =>
-    order.order_items.map((item) => computeItemProfitability(item))
+    order.order_items.map((item) => computeItemProfitability(item, order))
   );
   const itemsComVinculo = itemsLast30Days.filter((item) => item.productSku !== null);
   const itemsComCusto = itemsComVinculo.filter((item) => item.custoUnit !== null);

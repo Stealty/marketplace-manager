@@ -21,7 +21,7 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
   const filtered = threads.filter((thread) => {
     if (filter === 'all') return true;
     if (filter === 'pending') return thread.status === 'pending';
-    return thread.status !== 'pending';
+    return thread.status === 'answered';
   });
 
   if (threads.length === 0) {
@@ -46,6 +46,9 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
         <Stack divider={<Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }} />}>
           {filtered.map((thread) => {
             const isPending = thread.status === 'pending';
+            const isRemoved = thread.status === 'removed';
+            const statusLabel = isPending ? 'Pendente' : isRemoved ? 'Removida pelo ML' : 'Respondida';
+            const statusTone = isPending ? 'warning' : isRemoved ? 'neutral' : 'success';
             return (
               <Box
                 key={thread.id}
@@ -61,12 +64,10 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
                   spacing={1.5}
                   alignItems={{ xs: 'flex-start', sm: 'center' }}
                 >
-                  <StatusTag
-                    label={isPending ? 'Pendente' : 'Respondida'}
-                    tone={isPending ? 'warning' : 'success'}
-                  />
+                  <StatusTag label={statusLabel} tone={statusTone} />
                   <Typography variant="body2" sx={{ flexGrow: 1 }} noWrap>
-                    {thread.question_text?.trim() || 'Pergunta sem texto sincronizado'}
+                    {thread.question_text?.trim() ||
+                      (isRemoved ? 'Pergunta removida/moderada pelo Mercado Livre' : 'Pergunta sem texto sincronizado')}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">
                     {thread.marketplace_connections
