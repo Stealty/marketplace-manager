@@ -29,6 +29,7 @@ export const PROFITABILITY_COLUMNS: DataListColumn<ProfitabilityRow>[] = [
     id: 'foto',
     label: 'Foto',
     width: 56,
+    hideable: false,
     render: (row) =>
       row.product_listings?.image_url ? (
         <Avatar src={row.product_listings.image_url} variant="rounded" alt={row.title ?? 'Produto'} />
@@ -41,6 +42,7 @@ export const PROFITABILITY_COLUMNS: DataListColumn<ProfitabilityRow>[] = [
   {
     id: 'produto_pedido',
     label: 'Produto / pedido',
+    hideable: false,
     render: (row) => (
       <Stack spacing={0.25}>
         <Typography variant="body2" fontWeight={600}>

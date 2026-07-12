@@ -10,6 +10,7 @@ export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
     id: 'external_order_id',
     label: 'Pedido',
     sortable: true,
+    hideable: false,
     sortValue: (row) => row.external_order_id,
     render: (row) => row.external_order_id,
   },

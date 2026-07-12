@@ -216,6 +216,7 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
         getRowId={(row) => row.id}
         onRowClick={(row) => setSelectedOrderId(row.order.id)}
         maxHeight={tableMaxHeight}
+        storageKey="pedidos"
         emptyMessage={
           rows.length === 0
             ? "Nenhum pedido sincronizado ainda."

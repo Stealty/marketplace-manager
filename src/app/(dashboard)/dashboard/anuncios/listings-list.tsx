@@ -22,6 +22,7 @@ const columns: DataListColumn<ProductListingWithRelations>[] = [
     id: 'title',
     label: 'Título',
     sortable: true,
+    hideable: false,
     sortValue: (row) => row.title ?? row.products?.title ?? null,
     render: (row) => (
       <Typography variant="body2" fontWeight={600}>
@@ -116,6 +117,7 @@ export function ListingsList({ listings }: { listings: ProductListingWithRelatio
         rows={filtered}
         getRowId={(row) => row.id}
         onRowClick={(row) => setSelectedId(row.id)}
+        storageKey="anuncios"
         emptyMessage="Nenhum anúncio sincronizado ainda. Conecte um marketplace em Conexões para importar seu catálogo."
       />
 

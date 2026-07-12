@@ -229,6 +229,7 @@ export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) 
         columns={PROFITABILITY_COLUMNS}
         rows={sortedRows}
         getRowId={(row) => row.id}
+        storageKey="lucratividade"
         emptyMessage={
           rows.length === 0
             ? 'Nenhuma venda sincronizada ainda.'

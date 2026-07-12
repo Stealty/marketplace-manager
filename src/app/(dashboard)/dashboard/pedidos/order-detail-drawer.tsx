@@ -5,25 +5,10 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { StatusTag } from '@/components/StatusTag';
+import { orderStatusTone, translateOrderStatus } from '@/lib/orderStatus';
 import type { OrderWithRelations } from '@/services/ordersService';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  confirmed: 'Confirmado',
-  payment_required: 'Aguardando pagamento',
-  payment_in_process: 'Pagamento em processamento',
-  paid: 'Pago',
-  partially_paid: 'Parcialmente pago',
-  partially_refunded: 'Parcialmente reembolsado',
-  pending_cancel: 'Cancelamento pendente',
-  cancelled: 'Cancelado',
-  invalid: 'Inválido',
-};
-
-function translateOrderStatus(status: string): string {
-  return ORDER_STATUS_LABELS[status] ?? status;
-}
 
 export function OrderDetailDrawer({
   order,
@@ -62,7 +47,9 @@ export function OrderDetailDrawer({
           <Typography variant="caption" color="text.secondary">
             Status
           </Typography>
-          {order.status && <StatusTag label={translateOrderStatus(order.status)} tone="neutral" />}
+          {order.status && (
+            <StatusTag label={translateOrderStatus(order.status)} tone={orderStatusTone(order.status)} />
+          )}
         </Stack>
 
         <Stack direction="row" justifyContent="space-between">

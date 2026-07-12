@@ -17,6 +17,7 @@ export function DetailSection({ orders }: { orders: OrderWithRelations[] }) {
         rows={orders}
         getRowId={(row) => row.id}
         onRowClick={(row) => setSelectedId(row.id)}
+        storageKey="frete"
         emptyMessage="Nenhum pedido sincronizado ainda."
       />
       <OrderDetailDrawer order={selected} onClose={() => setSelectedId(null)} />

@@ -51,6 +51,7 @@ const columns: DataListColumn<ClaimWithRelations>[] = [
   {
     id: 'order',
     label: 'Pedido',
+    hideable: false,
     render: (row) => row.orders?.external_order_id ?? row.external_order_id ?? '—',
   },
   {
@@ -103,6 +104,7 @@ export function ClaimsList({ claims }: { claims: ClaimWithRelations[] }) {
         rows={filtered}
         getRowId={(row) => row.id}
         onRowClick={(row) => setSelectedId(row.id)}
+        storageKey="reclamacoes"
         emptyMessage={
           claims.length === 0
             ? 'Nenhuma reclamação ou devolução sincronizada ainda.'

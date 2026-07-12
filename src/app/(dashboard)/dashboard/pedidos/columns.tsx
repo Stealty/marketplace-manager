@@ -1,8 +1,12 @@
 import { Avatar, Typography } from '@mui/material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import type { DataListColumn } from '@/components/DataList';
+import { StatusTag } from '@/components/StatusTag';
+import { orderStatusTone, translateOrderStatus } from '@/lib/orderStatus';
 import type { OrderItemWithListing, OrderWithRelations } from '@/services/ordersService';
 import { ConferidoCheckbox } from './conferido-checkbox';
+
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export interface ConferenceRow extends OrderItemWithListing {
   order: OrderWithRelations;
@@ -15,6 +19,7 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     id: 'foto',
     label: 'Foto',
     width: 56,
+    hideable: false,
     render: (row) =>
       row.product_listings?.image_url ? (
         <Avatar src={row.product_listings.image_url} variant="rounded" alt={row.title ?? 'Produto'} />
@@ -37,6 +42,7 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     id: 'pedido',
     label: 'Pedido',
     sortable: true,
+    hideable: false,
     sortValue: (row) => row.order.external_order_id,
     render: (row) => row.order.external_order_id,
   },
@@ -75,9 +81,30 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     ),
   },
   {
+    id: 'status',
+    label: 'Status',
+    sortable: true,
+    sortValue: (row) => row.order.status,
+    render: (row) =>
+      row.order.status ? (
+        <StatusTag label={translateOrderStatus(row.order.status)} tone={orderStatusTone(row.order.status)} />
+      ) : (
+        '—'
+      ),
+  },
+  {
+    id: 'valor',
+    label: 'Valor',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.order.order_value,
+    render: (row) => (row.order.order_value !== null ? currency.format(row.order.order_value) : '—'),
+  },
+  {
     id: 'conferido',
     label: 'Conferido',
     align: 'center',
+    hideable: false,
     render: (row) => <ConferidoCheckbox orderItemId={row.id} conferido={row.conferido} />,
   },
 ];
