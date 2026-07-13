@@ -20,13 +20,17 @@ export async function syncAllQuestions(supabase: SupabaseClient): Promise<void> 
 
 // Perguntas banidas/removidas/desativadas pelo ML voltam com `text` vazio por
 // moderação — não é um pedido pendente de resposta real, então não deve
-// aparecer na fila de pendências como se fosse um problema de sync. UNDER_REVIEW
-// fica como 'pending': a pergunta ainda está visível e pode ser respondida
-// normalmente enquanto a revisão corre.
+// aparecer na fila de pendências como se fosse um problema de sync.
+// UNDER_REVIEW também pode voltar com `text` vazio enquanto a moderação
+// corre (confirmado comparando com o app legado, que só sincroniza
+// UNANSWERED e por isso nunca precisou tratar esse caso) — o sinal
+// confiável de "não há nada para responder" é o texto vazio em si, não uma
+// lista fixa de status.
 const BLOCKED_QUESTION_STATUSES = new Set(['BANNED', 'DELETED', 'DISABLED']);
 
 function resolveThreadStatus(question: MercadoLivreQuestion): 'answered' | 'pending' | 'removed' {
   if (BLOCKED_QUESTION_STATUSES.has(question.status)) return 'removed';
+  if (!question.text?.trim()) return 'removed';
   return question.answer ? 'answered' : 'pending';
 }
 

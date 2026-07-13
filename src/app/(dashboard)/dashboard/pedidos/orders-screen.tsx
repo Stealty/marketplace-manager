@@ -23,9 +23,14 @@ export function OrdersScreen() {
   });
 
   async function handleRefresh() {
-    const result = await refreshOrders();
-    await queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
-    return result;
+    try {
+      return await refreshOrders();
+    } finally {
+      // Sempre reconsulta, mesmo se refreshOrders() rejeitar (timeout de rede,
+      // erro do revalidatePath) — senão a tela trava nos dados antigos até um
+      // F5, já que staleTime é Infinity e só o invalidateQueries dispara refetch.
+      await queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
+    }
   }
 
   return (

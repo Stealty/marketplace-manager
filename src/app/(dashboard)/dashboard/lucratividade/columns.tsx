@@ -123,7 +123,16 @@ export const PROFITABILITY_COLUMNS: DataListColumn<ProfitabilityRow>[] = [
               </Typography>
             </Tooltip>
           )}
-          {row.order.status && <StatusTag label={row.order.status} tone="neutral" />}
+          <Stack direction="row" spacing={0.5}>
+            {row.repasseIsPrecise && (
+              <Tooltip title="Calculado a partir da transação de pagamento real (Mercado Pago), não estimado por sale_fee/frete.">
+                <span>
+                  <StatusTag label="Preciso" tone="accent" />
+                </span>
+              </Tooltip>
+            )}
+            {row.order.status && <StatusTag label={row.order.status} tone="neutral" />}
+          </Stack>
         </Stack>
       );
     },

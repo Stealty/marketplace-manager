@@ -2,8 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   fetchOrders,
   fetchShipment,
+  fetchShipmentCosts,
   type MercadoLivreOrder,
   type MercadoLivreShipment,
+  type MercadoLivreShipmentCosts,
 } from '@/lib/mercadolivre/client';
 import { mapWithConcurrency } from '@/lib/concurrency';
 import { upsertSyncState } from '@/lib/sync/freshness';
@@ -32,13 +34,20 @@ async function fetchShipmentsForOrders(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
   orders: MercadoLivreOrder[]
-): Promise<{ shipments: Map<number, MercadoLivreShipment>; failedShipmentIds: number[] }> {
+): Promise<{
+  shipments: Map<number, MercadoLivreShipment>;
+  shipmentCosts: Map<number, MercadoLivreShipmentCosts>;
+  failedShipmentIds: number[];
+  failedShipmentCostIds: number[];
+}> {
   const shipmentIds = Array.from(
     new Set(orders.map((o) => o.shipping?.id).filter((id): id is number => id !== undefined))
   );
 
   const shipments = new Map<number, MercadoLivreShipment>();
+  const shipmentCosts = new Map<number, MercadoLivreShipmentCosts>();
   const failedShipmentIds: number[] = [];
+  const failedShipmentCostIds: number[] = [];
   await mapWithConcurrency(shipmentIds, SHIPMENT_FETCH_CONCURRENCY, async (shipmentId) => {
     try {
       shipments.set(shipmentId, await fetchShipment(supabase, connection, shipmentId));
@@ -47,11 +56,21 @@ async function fetchShipmentsForOrders(
       // pedido correspondente fica sem frete calculado nesta rodada, mas o
       // sync continua; a falha é reportada no sync_state em vez de mascarada
       // como sucesso total, para não confundir "sem frete aplicável" com
-      // "falha ao consultar frete".
+      // "falha ao consultar frete". Sem o shipment base, não adianta tentar
+      // /costs — o pedido já fica sem nenhum dado de frete nesta rodada.
       failedShipmentIds.push(shipmentId);
+      return;
+    }
+    try {
+      shipmentCosts.set(shipmentId, await fetchShipmentCosts(supabase, connection, shipmentId));
+    } catch {
+      // Falha isolada em /costs não deve derrubar freight_value/is_free_shipping
+      // (que já vieram de /shipments/{id} com sucesso) — só freight_cost_seller
+      // fica desconhecido (null) para este pedido nesta rodada.
+      failedShipmentCostIds.push(shipmentId);
     }
   });
-  return { shipments, failedShipmentIds };
+  return { shipments, shipmentCosts, failedShipmentIds, failedShipmentCostIds };
 }
 
 // Busca em lote o id do product_listing correspondente a cada item vendido
@@ -78,25 +97,49 @@ async function fetchListingIdsByExternalId(
   return new Map((data ?? []).map((listing) => [listing.external_id as string, listing.id as string]));
 }
 
+// Identifica a linha do pedido de forma única mesmo quando o anúncio tem
+// variações: `item.id` é o mesmo para todas as variações de um anúncio, então
+// duas variações diferentes vendidas no mesmo pedido colidiriam no
+// unique(order_id, sku) e uma sobrescreveria a outra. `seller_sku` é o SKU
+// que o vendedor de fato cadastrou para aquela variação — usado como valor
+// exibido quando existe; o sufixo de variation_id garante unicidade mesmo sem
+// seller_sku cadastrado.
+function extractOrderItemSku(item: MercadoLivreOrder['order_items'][number]['item']): string {
+  if (item.seller_sku) return item.seller_sku;
+  if (item.variation_id) return `${item.id}-${item.variation_id}`;
+  return item.id;
+}
+
+// Custo de frete absorvido pelo vendedor a partir de /shipments/{id}/costs
+// (confirmado em produção pelo app legado ml-oauth): casa `senders[]` pelo
+// seller_id da conexão; se não achar (remessa sem esse vendedor listado ou
+// schema diferente por tipo de envio), cai no primeiro sender; sem nenhum
+// sender, o custo do vendedor é 0 (resposta chegou, só não tem o que ratear).
+// `undefined` (chamada falhou) é tratado à parte, como null/desconhecido.
+function extractSellerFreightCost(
+  costs: MercadoLivreShipmentCosts | undefined,
+  sellerId: string | null
+): number | null {
+  if (!costs) return null;
+  const senders = costs.senders ?? [];
+  const matched = sellerId ? senders.find((sender) => String(sender.id) === sellerId) : undefined;
+  return matched?.cost ?? senders[0]?.cost ?? 0;
+}
+
 async function upsertOrder(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
   mlOrder: MercadoLivreOrder,
   shipments: Map<number, MercadoLivreShipment>,
+  shipmentCosts: Map<number, MercadoLivreShipmentCosts>,
   listingIdByExternalId: Map<string, string>
 ) {
   const shipment = mlOrder.shipping?.id ? shipments.get(mlOrder.shipping.id) : undefined;
+  const costs = mlOrder.shipping?.id ? shipmentCosts.get(mlOrder.shipping.id) : undefined;
   // `cost`: quanto o comprador paga pelo frete (0 = frete grátis pro
   // comprador) — segue sendo a base do indicador is_free_shipping.
   const freightValue = shipment?.shipping_option?.cost ?? null;
-  // Estimativa best-effort do custo de frete absorvido pelo VENDEDOR (ver
-  // NOTE em MercadoLivreShipment e na migration 0013): a diferença entre o
-  // valor "cheio" do frete e o que o comprador de fato pagou. Sem list_cost
-  // na resposta, fica null (não confunde com "vendedor não paga nada").
-  const freightCostSeller =
-    shipment?.shipping_option?.list_cost !== undefined && shipment?.shipping_option?.cost !== undefined
-      ? Math.max(shipment.shipping_option.list_cost - shipment.shipping_option.cost, 0)
-      : null;
+  const freightCostSeller = extractSellerFreightCost(costs, connection.external_account_id);
 
   const { data: order, error } = await supabase
     .from('orders')
@@ -112,6 +155,14 @@ async function upsertOrder(
         is_free_shipping: freightValue === 0,
         ordered_at: mlOrder.date_created,
         buyer_nickname: mlOrder.buyer?.nickname ?? null,
+        pack_id: mlOrder.pack_id ? String(mlOrder.pack_id) : null,
+        shipment_id: mlOrder.shipping?.id ?? null,
+        shipping_status: shipment?.status ?? null,
+        shipping_substatus: shipment?.substatus ?? null,
+        logistic_type: shipment?.logistic_type ?? null,
+        date_shipped: shipment?.date_shipped ?? null,
+        label_printed_at: shipment?.date_first_printed ?? null,
+        payments: mlOrder.payments ?? null,
       },
       { onConflict: 'marketplace_connection_id,external_order_id' }
     )
@@ -123,7 +174,7 @@ async function upsertOrder(
   // Remove apenas os itens que saíram do pedido no ML — itens que continuam
   // são upsertados por (order_id, sku) para preservar o campo `conferido`
   // (delete+insert resetava a conferência a cada ressincronização).
-  const currentSkus = mlOrder.order_items.map((item) => item.item.id);
+  const currentSkus = mlOrder.order_items.map((item) => extractOrderItemSku(item.item));
   const { data: existingItems } = await supabase
     .from('order_items')
     .select('sku')
@@ -141,7 +192,7 @@ async function upsertOrder(
         org_id: connection.org_id,
         order_id: order.id,
         product_listing_id: listingIdByExternalId.get(item.item.id) ?? null,
-        sku: item.item.id,
+        sku: extractOrderItemSku(item.item),
         title: item.item.title,
         quantity: item.quantity,
         unit_price: item.unit_price,
@@ -159,20 +210,34 @@ export async function syncOrders(
 ): Promise<void> {
   try {
     const orders = await fetchOrders(supabase, connection);
-    const { shipments, failedShipmentIds } = await fetchShipmentsForOrders(supabase, connection, orders);
+    const { shipments, shipmentCosts, failedShipmentIds, failedShipmentCostIds } = await fetchShipmentsForOrders(
+      supabase,
+      connection,
+      orders
+    );
     const listingIdByExternalId = await fetchListingIdsByExternalId(supabase, connection, orders);
     for (const mlOrder of orders) {
-      await upsertOrder(supabase, connection, mlOrder, shipments, listingIdByExternalId);
+      await upsertOrder(supabase, connection, mlOrder, shipments, shipmentCosts, listingIdByExternalId);
     }
 
+    const failureMessages: string[] = [];
     if (failedShipmentIds.length > 0) {
+      failureMessages.push(`frete de ${failedShipmentIds.length} envio(s): ${failedShipmentIds.join(', ')}`);
+    }
+    if (failedShipmentCostIds.length > 0) {
+      failureMessages.push(
+        `custo de frete do vendedor de ${failedShipmentCostIds.length} envio(s): ${failedShipmentCostIds.join(', ')}`
+      );
+    }
+
+    if (failureMessages.length > 0) {
       await upsertSyncState(
         supabase,
         connection,
         'orders',
         'sync_orders',
         'partial',
-        `Falha ao buscar frete de ${failedShipmentIds.length} envio(s): ${failedShipmentIds.join(', ')}`
+        `Falha ao buscar ${failureMessages.join('; ')}`
       );
     } else {
       await upsertSyncState(supabase, connection, 'orders', 'sync_orders', 'ok');

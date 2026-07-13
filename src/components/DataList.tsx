@@ -30,6 +30,8 @@ export interface DataListColumn<T> {
   render: (row: T) => React.ReactNode;
   /** Set to false for columns essential to identifying/acting on a row (thumbnail, primary id, action control). They stay always-on and are left out of the column-visibility picker. Defaults to true. */
   hideable?: boolean;
+  /** Only used together with `renderRowTitle`: this column's cell spans both lines of the row (e.g. a thumbnail next to a title line). Spanning columns must come first in the `columns` array, since both lines render them before the rest. */
+  spanRows?: boolean;
 }
 
 export interface DataListProps<T> {
@@ -43,6 +45,8 @@ export interface DataListProps<T> {
   maxHeight?: number | string;
   /** Scopes persisted column show/hide preferences to this list, e.g. "pedidos". */
   storageKey: string;
+  /** When set, each row renders as two lines: this title spans the non-`spanRows` columns on the first line, and the regular column cells follow on the second. Columns marked `spanRows` (e.g. a thumbnail) span both lines. */
+  renderRowTitle?: (row: T) => React.ReactNode;
 }
 
 function compareValues(a: string | number | null, b: string | number | null): number {
@@ -107,6 +111,7 @@ export function DataList<T>({
   defaultSort,
   maxHeight,
   storageKey,
+  renderRowTitle,
 }: DataListProps<T>) {
   const [sort, setSort] = React.useState(defaultSort ?? null);
   const [columnMenuAnchor, setColumnMenuAnchor] = React.useState<HTMLButtonElement | null>(null);
@@ -114,6 +119,8 @@ export function DataList<T>({
 
   const hideableColumns = columns.filter((column) => column.hideable !== false);
   const visibleColumns = columns.filter((column) => column.hideable === false || !hidden.has(column.id));
+  const spanColumns = visibleColumns.filter((column) => column.spanRows);
+  const lineColumns = visibleColumns.filter((column) => !column.spanRows);
 
   const sortedRows = React.useMemo(() => {
     if (!sort) return rows;
@@ -207,20 +214,48 @@ export function DataList<T>({
             </TableRow>
           </TableHead>
           <TableBody>
-            {sortedRows.map((row) => (
-              <TableRow
-                key={getRowId(row)}
-                hover={Boolean(onRowClick)}
-                onClick={() => onRowClick?.(row)}
-                sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
-              >
-                {visibleColumns.map((column) => (
-                  <TableCell key={column.id} align={column.align}>
-                    {column.render(row)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            {sortedRows.map((row) =>
+              renderRowTitle ? (
+                <React.Fragment key={getRowId(row)}>
+                  <TableRow
+                    hover={Boolean(onRowClick)}
+                    onClick={() => onRowClick?.(row)}
+                    sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
+                  >
+                    {spanColumns.map((column) => (
+                      <TableCell key={column.id} align={column.align} rowSpan={2}>
+                        {column.render(row)}
+                      </TableCell>
+                    ))}
+                    <TableCell colSpan={lineColumns.length}>{renderRowTitle(row)}</TableCell>
+                  </TableRow>
+                  <TableRow
+                    hover={Boolean(onRowClick)}
+                    onClick={() => onRowClick?.(row)}
+                    sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
+                  >
+                    {lineColumns.map((column) => (
+                      <TableCell key={column.id} align={column.align}>
+                        {column.render(row)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </React.Fragment>
+              ) : (
+                <TableRow
+                  key={getRowId(row)}
+                  hover={Boolean(onRowClick)}
+                  onClick={() => onRowClick?.(row)}
+                  sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
+                >
+                  {visibleColumns.map((column) => (
+                    <TableCell key={column.id} align={column.align}>
+                      {column.render(row)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            )}
           </TableBody>
         </Table>
       </TableContainer>

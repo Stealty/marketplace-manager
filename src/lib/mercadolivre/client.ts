@@ -269,11 +269,26 @@ export interface MercadoLivreOrder {
   status: string;
   date_created: string;
   total_amount: number;
+  // Pedidos de um mesmo "carrinho"/pagamento combinado compartilham pack_id —
+  // usado para agrupar pagamento e frete por grupo (ver
+  // src/lib/mercadolivre/shippingReadiness.ts e getPreciseProfitability),
+  // igual ao app legado (server.js, groups por pack_id).
+  pack_id?: number | null;
   buyer?: { id: number; nickname: string };
   seller?: { id: number; nickname: string };
   shipping?: { id?: number };
+  // IDs de pagamento do pedido — a resposta de /orders/search traz um resumo;
+  // o valor líquido real (net_received_amount) só vem consultando cada
+  // pagamento individualmente na API do Mercado Pago (ver
+  // src/lib/mercadopago.ts), por isso só guardamos os ids aqui.
+  payments?: { id: number; status: string }[];
   order_items: {
-    item: { id: string; title: string };
+    // `variation_id`/`seller_sku` só vêm preenchidos quando o item vendido tem
+    // variação (tamanho, cor, etc.) — sem eles, dois tamanhos do mesmo anúncio
+    // chegam com o mesmo `item.id` e não há como distinguir qual foi vendido
+    // (ver extractOrderItemSku em ordersSync.ts). Revalidar contra a doc atual
+    // do Mercado Livre Developers.
+    item: { id: string; title: string; variation_id?: number | null; seller_sku?: string | null };
     quantity: number;
     unit_price: number;
     sale_fee?: number;
@@ -330,11 +345,16 @@ export async function fetchOrders(
 // full, flex, correios, retirada em loja) — revalidar contra a doc atual do
 // Mercado Livre Developers antes de confiar nos nomes de campo abaixo.
 // `cost` = quanto o COMPRADOR paga pelo frete (0 em anúncios com frete
-// grátis); `list_cost` = valor "cheio" do frete sem descontos/subsídio. A
-// diferença entre os dois é o que ordersSync.ts usa como estimativa do custo
-// de frete absorvido pelo vendedor (ver freight_cost_seller em ordersSync.ts).
+// grátis); usado só para o indicador is_free_shipping e freight_value (tela
+// Frete). O custo de frete absorvido pelo vendedor vem de fetchShipmentCosts
+// (/shipments/{id}/costs) abaixo, não deste endpoint.
 export interface MercadoLivreShipment {
   id: number;
+  status?: string;
+  substatus?: string | null;
+  logistic_type?: string;
+  date_shipped?: string | null;
+  date_first_printed?: string | null;
   shipping_option?: { cost?: number; list_cost?: number; base_cost?: number };
 }
 
@@ -345,6 +365,26 @@ export async function fetchShipment(
 ): Promise<MercadoLivreShipment> {
   const accessToken = await getValidAccessToken(supabase, connection);
   const response = await mlFetch(`/shipments/${shipmentId}`, accessToken);
+  return response.json();
+}
+
+// Confirmado em produção pelo app legado (ml-oauth): `/shipments/{id}/costs`
+// devolve a divisão real do frete entre comprador e vendedor —
+// `receiver.cost` é o que o comprador pagou, `senders[].cost` é o que cada
+// vendedor da remessa absorveu (casar por `senders[].id` com o seller_id da
+// conexão; em remessas de vendedor único, geralmente há um único sender).
+export interface MercadoLivreShipmentCosts {
+  receiver?: { cost?: number };
+  senders?: { id?: number; cost?: number }[];
+}
+
+export async function fetchShipmentCosts(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  shipmentId: number
+): Promise<MercadoLivreShipmentCosts> {
+  const accessToken = await getValidAccessToken(supabase, connection);
+  const response = await mlFetch(`/shipments/${shipmentId}/costs`, accessToken);
   return response.json();
 }
 
@@ -449,9 +489,10 @@ export function extractSellerSku(item: MercadoLivreItem): string | null {
 // NOTE: filtro/paginação de /questions/search conferidos com conhecimento
 // geral da API — revalidar contra a doc atual do Mercado Livre Developers.
 // `status` documentado: ANSWERED, UNANSWERED, CLOSED_UNANSWERED, UNDER_REVIEW,
-// BANNED, DELETED, DISABLED. Perguntas BANNED/DELETED/DISABLED voltam com
-// `text` vazio por moderação do próprio ML (não é falha de sync) — ver
-// mapeamento em questionsSync.ts.
+// BANNED, DELETED, DISABLED. Qualquer um desses (incluindo UNDER_REVIEW) pode
+// voltar com `text` vazio por moderação do próprio ML (não é falha de sync) —
+// questionsSync.ts trata texto vazio como sinal de "sem nada a responder",
+// não uma lista fixa de status.
 export type MercadoLivreQuestionStatus =
   | 'ANSWERED'
   | 'UNANSWERED'

@@ -20,11 +20,17 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     label: 'Foto',
     width: 56,
     hideable: false,
+    spanRows: true,
     render: (row) =>
       row.product_listings?.image_url ? (
-        <Avatar src={row.product_listings.image_url} variant="rounded" alt={row.title ?? 'Produto'} />
+        <Avatar
+          src={row.product_listings.image_url}
+          variant="rounded"
+          alt={row.title ?? 'Produto'}
+          sx={{ width: 56, height: 56 }}
+        />
       ) : (
-        <Avatar variant="rounded">
+        <Avatar variant="rounded" sx={{ width: 56, height: 56 }}>
           <Inventory2OutlinedIcon fontSize="small" />
         </Avatar>
       ),
@@ -51,7 +57,7 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     label: 'SKU',
     sortable: true,
     sortValue: (row) => row.product_listings?.products?.sku ?? row.sku ?? null,
-    render: (row) => row.product_listings?.products?.sku ?? row.sku ?? row.title ?? '—',
+    render: (row) => row.product_listings?.products?.sku ?? row.sku ?? '—',
   },
   {
     id: 'comprador',

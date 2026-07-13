@@ -1,12 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { MenuItem, Stack, TextField } from '@mui/material';
+import { Button, FormControlLabel, MenuItem, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { DataList } from '@/components/DataList';
 import { IndicatorCard } from '@/components/IndicatorCard';
 import { computeItemProfitability } from '@/lib/profitability';
+import { isAwaitingShipment } from '@/lib/mercadolivre/shippingReadiness';
 import type { OrderWithRelations } from '@/services/ordersService';
 import { PROFITABILITY_COLUMNS, type ProfitabilityRow } from './columns';
+import { getPreciseProfitability } from './actions';
+import { ORDERS_QUERY_KEY } from './profitability-screen';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -34,11 +38,19 @@ function toProfitabilityRow(item: OrderWithRelations['order_items'][number], ord
 }
 
 export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) {
+  const queryClient = useQueryClient();
+  const [isCalculatingPrecise, startCalculatingPrecise] = React.useTransition();
+  const [preciseError, setPreciseError] = React.useState<string | null>(null);
+
   const [loja, setLoja] = React.useState('all');
   const [periodo, setPeriodo] = React.useState<Periodo>('30');
   const [busca, setBusca] = React.useState('');
   const [situacao, setSituacao] = React.useState('all');
   const [ordenacao, setOrdenacao] = React.useState<Ordenacao>('recentes');
+  // Réplica do "Painel de Conferência" do app legado — pedidos com envio
+  // pronto para coleta, etiqueta impressa, ainda não postados e fora do Full.
+  // Filtro aditivo: não substitui os outros, só restringe mais.
+  const [apenasAguardandoEnvio, setApenasAguardandoEnvio] = React.useState(false);
 
   // Lazy initializer é a válvula de escape sancionada pelo React para valores
   // impuros (Date.now()) — evita recalcular (e violar a regra de pureza do
@@ -70,6 +82,8 @@ export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) 
 
     if (situacao !== 'all' && row.order.status !== situacao) return false;
 
+    if (apenasAguardandoEnvio && !isAwaitingShipment(row.order)) return false;
+
     if (busca.trim()) {
       const query = busca.trim().toLowerCase();
       const skuValue = (row.productSku ?? row.sku ?? '').toLowerCase();
@@ -85,6 +99,28 @@ export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) 
 
     return true;
   });
+
+  // Repasse líquido preciso (via Mercado Pago) só é calculável sob demanda
+  // para um período limitado — "Todo o período" pode significar milhares de
+  // pedidos, uma chamada de API por pagamento cada. Só considera pedidos que
+  // ainda não têm o valor preciso calculado (evita rechamar a API para o que
+  // já foi persistido em visitas anteriores).
+  const pendingPreciseOrderIds = Array.from(
+    new Set(filteredRows.filter((row) => !row.repasseIsPrecise).map((row) => row.order.id))
+  );
+  const podeCalcularPreciso = periodo !== 'all' && pendingPreciseOrderIds.length > 0;
+
+  function handleCalculatePrecise() {
+    setPreciseError(null);
+    startCalculatingPrecise(async () => {
+      const result = await getPreciseProfitability(pendingPreciseOrderIds);
+      if (result.error) {
+        setPreciseError(result.error);
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
+    });
+  }
 
   const sortedRows = React.useMemo(() => {
     const sorted = [...filteredRows];
@@ -200,6 +236,46 @@ export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) 
             </MenuItem>
           ))}
         </TextField>
+
+        <Tooltip title="Mesmo critério do Painel de Conferência: envio pronto para coleta, etiqueta impressa, ainda não postado e fora do Mercado Envios Full.">
+          <FormControlLabel
+            control={
+              <Switch
+                checked={apenasAguardandoEnvio}
+                onChange={(event) => setApenasAguardandoEnvio(event.target.checked)}
+              />
+            }
+            label="Aguardando envio"
+          />
+        </Tooltip>
+      </Stack>
+
+      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 2 }} flexWrap="wrap" useFlexGap>
+        <Tooltip
+          title={
+            periodo === 'all'
+              ? 'Selecione um período (não "Todo o período") para calcular o repasse preciso.'
+              : 'Busca o valor líquido real recebido (via Mercado Pago) para os pedidos do período que ainda não foram calculados.'
+          }
+        >
+          <span>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={!podeCalcularPreciso || isCalculatingPrecise}
+              onClick={handleCalculatePrecise}
+            >
+              {isCalculatingPrecise
+                ? 'Calculando repasse preciso…'
+                : `Calcular repasse preciso${pendingPreciseOrderIds.length > 0 ? ` (${pendingPreciseOrderIds.length} pedido(s))` : ''}`}
+            </Button>
+          </span>
+        </Tooltip>
+        {preciseError && (
+          <Typography variant="caption" color="error.main">
+            {preciseError}
+          </Typography>
+        )}
       </Stack>
 
       <Stack direction="row" spacing={2} sx={{ px: 2 }} flexWrap="wrap" useFlexGap>

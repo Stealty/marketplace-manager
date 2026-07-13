@@ -16,8 +16,12 @@ export function RefreshButton({
 
   function handleClick() {
     startTransition(async () => {
-      const result = await action();
-      setError(result?.error ?? null);
+      try {
+        const result = await action();
+        setError(result?.error ?? null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Falha ao atualizar.');
+      }
     });
   }
 

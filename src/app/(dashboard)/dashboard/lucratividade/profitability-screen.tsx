@@ -10,7 +10,7 @@ import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { ProfitabilityList } from './profitability-list';
 import { getProfitabilityData, refreshProfitability, saveCost } from './actions';
 
-const ORDERS_QUERY_KEY = ['orders'];
+export const ORDERS_QUERY_KEY = ['orders'];
 
 function parseCost(raw: string): number | null {
   const normalized = raw.replace(',', '.');

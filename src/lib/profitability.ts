@@ -5,6 +5,7 @@ export interface ItemProfitability {
   vendaBruta: number;
   repasse: number;
   repasseFeeKnown: boolean;
+  repasseIsPrecise: boolean;
   freightCost: number;
   freightCostKnown: boolean;
   custoUnit: number | null;
@@ -31,10 +32,18 @@ export function computeItemProfitability(item: OrderItemWithListing, order: Orde
   const productSku = item.product_listings?.products?.sku ?? null;
   const custoUnit = item.product_listings?.products?.unit_cost ?? null;
   const vendaBruta = (item.unit_price ?? 0) * item.quantity;
-  const repasseFeeKnown = item.sale_fee !== null;
-  const freightCostKnown = order.freight_cost_seller !== null;
   const freightCost = freightShareForItem(item, order, vendaBruta);
-  const repasse = vendaBruta - (item.sale_fee ?? 0) - freightCost;
+
+  // Repasse preciso (via transação de pagamento real na API do Mercado Pago,
+  // calculado sob demanda por getPreciseProfitability) tem prioridade sobre o
+  // cálculo simples (venda bruta - sale_fee - frete rateado) quando já foi
+  // calculado para este item — já vem líquido de tudo, então sale_fee/frete
+  // deixam de ser a fonte de incerteza.
+  const repasseIsPrecise = item.net_received_precise !== null;
+  const repasseFeeKnown = repasseIsPrecise || item.sale_fee !== null;
+  const freightCostKnown = repasseIsPrecise || order.freight_cost_seller !== null;
+  const repasse = repasseIsPrecise ? item.net_received_precise! : vendaBruta - (item.sale_fee ?? 0) - freightCost;
+
   const custoTotal = custoUnit !== null ? custoUnit * item.quantity : null;
   const lucroBruto = custoTotal !== null ? repasse - custoTotal : null;
   const lucroPct =
@@ -45,6 +54,7 @@ export function computeItemProfitability(item: OrderItemWithListing, order: Orde
     vendaBruta,
     repasse,
     repasseFeeKnown,
+    repasseIsPrecise,
     freightCost,
     freightCostKnown,
     custoUnit,

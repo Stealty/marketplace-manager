@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Chip, MenuItem, Stack, TextField } from "@mui/material";
+import { Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { DataList } from "@/components/DataList";
 import type { OrderWithRelations } from "@/services/ordersService";
 import { CONFERENCE_COLUMNS, type ConferenceRow } from "./columns";
@@ -217,6 +217,11 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
         onRowClick={(row) => setSelectedOrderId(row.order.id)}
         maxHeight={tableMaxHeight}
         storageKey="pedidos"
+        renderRowTitle={(row) => (
+          <Typography variant="body2" fontWeight={600} noWrap>
+            {row.product_listings?.products?.title ?? row.title ?? 'Item sem título'}
+          </Typography>
+        )}
         emptyMessage={
           rows.length === 0
             ? "Nenhum pedido sincronizado ainda."

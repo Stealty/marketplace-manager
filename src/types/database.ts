@@ -77,6 +77,14 @@ export interface Order {
   is_free_shipping: boolean;
   ordered_at: string | null;
   buyer_nickname: string | null;
+  pack_id: string | null;
+  shipping_status: string | null;
+  shipping_substatus: string | null;
+  logistic_type: string | null;
+  date_shipped: string | null;
+  label_printed_at: string | null;
+  payments: { id: number; status: string }[] | null;
+  shipment_id: number | null;
   created_at: string;
 }
 
@@ -91,6 +99,9 @@ export interface OrderItem {
   unit_price: number | null;
   conferido: boolean;
   sale_fee: number | null;
+  net_received_precise: number | null;
+  net_received_source: string | null;
+  net_received_estimated: boolean | null;
 }
 
 export interface Product {
