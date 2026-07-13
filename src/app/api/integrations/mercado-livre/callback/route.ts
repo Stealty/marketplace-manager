@@ -37,17 +37,17 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
   const orgs = await getCurrentUserOrganizations();
-  if (orgs.length === 0) {
-    return NextResponse.json({ error: 'Usuário não pertence a nenhuma organização' }, { status: 400 });
-  }
-  if (orgs.length > 1) {
-    // Não há hoje um seletor de "organização ativa" na UI para desambiguar —
-    // melhor abortar do que gravar o token na org errada silenciosamente.
-    return NextResponse.json(
-      { error: 'Usuário pertence a múltiplas organizações; seleção de organização ainda não suportada neste fluxo' },
-      { status: 400 }
-    );
-  }
+  // if (orgs.length === 0) {
+  //   return NextResponse.json({ error: 'Usuário não pertence a nenhuma organização' }, { status: 400 });
+  // }
+  // if (orgs.length > 1) {
+  //   // Não há hoje um seletor de "organização ativa" na UI para desambiguar —
+  //   // melhor abortar do que gravar o token na org errada silenciosamente.
+  //   return NextResponse.json(
+  //     { error: 'Usuário pertence a múltiplas organizações; seleção de organização ainda não suportada neste fluxo' },
+  //     { status: 400 }
+  //   );
+  // }
   const org = orgs[0];
 
   const externalAccountId = String(tokens.user_id);
