@@ -213,15 +213,17 @@ export function DataList<T>({
               ))}
             </TableRow>
           </TableHead>
-          <TableBody>
-            {sortedRows.map((row) =>
-              renderRowTitle ? (
-                <React.Fragment key={getRowId(row)}>
-                  <TableRow
-                    hover={Boolean(onRowClick)}
-                    onClick={() => onRowClick?.(row)}
-                    sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
-                  >
+          {renderRowTitle
+            ? sortedRows.map((row) => (
+                <TableBody
+                  key={getRowId(row)}
+                  onClick={() => onRowClick?.(row)}
+                  sx={{
+                    cursor: onRowClick ? 'pointer' : 'default',
+                    ...(onRowClick && { '&:hover': { bgcolor: 'action.hover' } }),
+                  }}
+                >
+                  <TableRow>
                     {spanColumns.map((column) => (
                       <TableCell key={column.id} align={column.align} rowSpan={2}>
                         {column.render(row)}
@@ -229,34 +231,33 @@ export function DataList<T>({
                     ))}
                     <TableCell colSpan={lineColumns.length}>{renderRowTitle(row)}</TableCell>
                   </TableRow>
-                  <TableRow
-                    hover={Boolean(onRowClick)}
-                    onClick={() => onRowClick?.(row)}
-                    sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
-                  >
+                  <TableRow>
                     {lineColumns.map((column) => (
                       <TableCell key={column.id} align={column.align}>
                         {column.render(row)}
                       </TableCell>
                     ))}
                   </TableRow>
-                </React.Fragment>
-              ) : (
-                <TableRow
-                  key={getRowId(row)}
-                  hover={Boolean(onRowClick)}
-                  onClick={() => onRowClick?.(row)}
-                  sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
-                >
-                  {visibleColumns.map((column) => (
-                    <TableCell key={column.id} align={column.align}>
-                      {column.render(row)}
-                    </TableCell>
+                </TableBody>
+              ))
+            : (
+                <TableBody>
+                  {sortedRows.map((row) => (
+                    <TableRow
+                      key={getRowId(row)}
+                      hover={Boolean(onRowClick)}
+                      onClick={() => onRowClick?.(row)}
+                      sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
+                    >
+                      {visibleColumns.map((column) => (
+                        <TableCell key={column.id} align={column.align}>
+                          {column.render(row)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
                   ))}
-                </TableRow>
-              )
-            )}
-          </TableBody>
+                </TableBody>
+              )}
         </Table>
       </TableContainer>
     </Stack>
