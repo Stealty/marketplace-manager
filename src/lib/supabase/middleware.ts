@@ -1,9 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// rotas de webhook são chamadas servidor-a-servidor pelo marketplace,
-// sem cookie de sessão — precisam ficar fora do gate de autenticação.
-const PUBLIC_PATHS = ['/login', '/api/integrations/mercado-livre/webhook'];
+// rotas de webhook são chamadas servidor-a-servidor pelo marketplace, e
+// /auth/confirm é onde um link de convite/recuperação de senha estabelece a
+// sessão — ambas ainda não têm cookie de sessão quando a requisição chega
+// aqui, então precisam ficar fora do gate de autenticação.
+const PUBLIC_PATHS = ['/login', '/auth/confirm', '/api/integrations/mercado-livre/webhook'];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

@@ -1,6 +1,6 @@
 import { StatusTag } from '@/components/StatusTag';
 import type { DataListColumn } from '@/components/DataList';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
+import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import type { OrderWithRelations } from '@/services/ordersService';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -15,12 +15,11 @@ export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
     render: (row) => row.external_order_id,
   },
   {
-    id: 'marketplace',
-    label: 'Marketplace',
+    id: 'loja',
+    label: 'Loja',
     sortable: true,
-    sortValue: (row) => row.marketplace_connections?.marketplace ?? null,
-    render: (row) =>
-      row.marketplace_connections ? MARKETPLACE_LABELS[row.marketplace_connections.marketplace] : '—',
+    sortValue: (row) => storeSortValue(row.marketplace_connections),
+    render: (row) => <StoreTag connection={row.marketplace_connections} />,
   },
   {
     id: 'order_value',

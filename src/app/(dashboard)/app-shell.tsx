@@ -14,10 +14,12 @@ const SIDEBAR_WIDTH = 240;
 export function AppShell({
   userEmail,
   expiredConnections,
+  showAdmin,
   children,
 }: {
   userEmail: string | null;
   expiredConnections: ExpiredConnectionInfo[];
+  showAdmin: boolean;
   children: React.ReactNode;
 }) {
   const theme = useTheme();
@@ -32,7 +34,7 @@ export function AppShell({
         </Typography>
       </Toolbar>
       <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
-        <NavList onNavigate={() => setMobileOpen(false)} />
+        <NavList onNavigate={() => setMobileOpen(false)} showAdmin={showAdmin} />
       </Box>
       <Box sx={{ borderTop: '1px solid', borderColor: 'divider', py: 1 }}>
         <LogoutButton />

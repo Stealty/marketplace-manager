@@ -2,6 +2,7 @@ import { Avatar, Typography } from '@mui/material';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import type { DataListColumn } from '@/components/DataList';
 import { StatusTag } from '@/components/StatusTag';
+import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import { orderStatusTone, translateOrderStatus } from '@/lib/orderStatus';
 import type { OrderItemWithListing, OrderWithRelations } from '@/services/ordersService';
 import { ConferidoCheckbox } from './conferido-checkbox';
@@ -39,10 +40,8 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     id: 'loja',
     label: 'Loja',
     sortable: true,
-    sortValue: (row) =>
-      row.order.marketplace_connections?.seller_nickname ?? row.order.marketplace_connections?.label ?? null,
-    render: (row) =>
-      row.order.marketplace_connections?.seller_nickname ?? row.order.marketplace_connections?.label ?? '—',
+    sortValue: (row) => storeSortValue(row.order.marketplace_connections),
+    render: (row) => <StoreTag connection={row.order.marketplace_connections} />,
   },
   {
     id: 'pedido',

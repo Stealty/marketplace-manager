@@ -6,7 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DataList, type DataListColumn } from '@/components/DataList';
 import { StatusTag } from '@/components/StatusTag';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
+import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import type { ClaimWithRelations } from '@/services/claimsService';
 import { ClaimDetailDrawer } from './claim-detail-drawer';
 
@@ -41,12 +41,11 @@ const columns: DataListColumn<ClaimWithRelations>[] = [
       ),
   },
   {
-    id: 'marketplace',
-    label: 'Marketplace',
+    id: 'loja',
+    label: 'Loja',
     sortable: true,
-    sortValue: (row) => row.marketplace_connections?.marketplace ?? null,
-    render: (row) =>
-      row.marketplace_connections ? MARKETPLACE_LABELS[row.marketplace_connections.marketplace] : '—',
+    sortValue: (row) => storeSortValue(row.marketplace_connections),
+    render: (row) => <StoreTag connection={row.marketplace_connections} />,
   },
   {
     id: 'order',

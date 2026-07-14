@@ -12,6 +12,7 @@ import CableOutlinedIcon from '@mui/icons-material/CableOutlined';
 import StarOutlineOutlinedIcon from '@mui/icons-material/StarOutlineOutlined';
 import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import ReportProblemOutlinedIcon from '@mui/icons-material/ReportProblemOutlined';
+import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Visão geral', icon: SpaceDashboardOutlinedIcon },
@@ -25,12 +26,15 @@ const NAV_ITEMS = [
   { href: '/dashboard/conexoes', label: 'Conexões', icon: CableOutlinedIcon },
 ];
 
-export function NavList({ onNavigate }: { onNavigate?: () => void }) {
+const ADMIN_NAV_ITEM = { href: '/dashboard/admin', label: 'Administração', icon: AdminPanelSettingsOutlinedIcon };
+
+export function NavList({ onNavigate, showAdmin }: { onNavigate?: () => void; showAdmin: boolean }) {
   const pathname = usePathname();
+  const items = showAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
 
   return (
     <List sx={{ px: 1 }}>
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = pathname === item.href;
         const Icon = item.icon;
         return (

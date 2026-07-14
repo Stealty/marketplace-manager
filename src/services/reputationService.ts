@@ -5,7 +5,7 @@ import { ensureFresh, getLastSuccessAt } from '@/lib/sync/freshness';
 import { getCurrentUserOrgIds } from '@/services/organizationService';
 
 export interface ReputationMetricWithRelations extends ReputationMetric {
-  marketplace_connections: { label: string; marketplace: MarketplaceType } | null;
+  marketplace_connections: { label: string; marketplace: MarketplaceType; seller_nickname: string | null } | null;
 }
 
 export async function getReputationMetrics(): Promise<ReputationMetricWithRelations[]> {
@@ -20,7 +20,7 @@ export async function getReputationMetrics(): Promise<ReputationMetricWithRelati
 
   const { data, error } = await supabase
     .from('reputation_metrics')
-    .select('*, marketplace_connections(label, marketplace)')
+    .select('*, marketplace_connections(label, marketplace, seller_nickname)')
     .order('metric_date', { ascending: false })
     .returns<ReputationMetricWithRelations[]>();
 

@@ -4,6 +4,7 @@ import * as React from 'react';
 import { LinearProgress, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { DataList, type DataListColumn } from '@/components/DataList';
 import { StatusTag } from '@/components/StatusTag';
+import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
 import type { ProductListingWithRelations } from '@/services/listingsService';
 import { ListingDetailDrawer } from './listing-detail-drawer';
@@ -38,12 +39,11 @@ const columns: DataListColumn<ProductListingWithRelations>[] = [
     render: (row) => row.products?.sku ?? '—',
   },
   {
-    id: 'marketplace',
-    label: 'Marketplace',
+    id: 'loja',
+    label: 'Loja',
     sortable: true,
-    sortValue: (row) => row.marketplace_connections?.marketplace ?? null,
-    render: (row) =>
-      row.marketplace_connections ? MARKETPLACE_LABELS[row.marketplace_connections.marketplace] : '—',
+    sortValue: (row) => storeSortValue(row.marketplace_connections),
+    render: (row) => <StoreTag connection={row.marketplace_connections} />,
   },
   {
     id: 'price',

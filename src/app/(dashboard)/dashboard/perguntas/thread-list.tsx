@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { SectionPanel } from '@/components/SectionPanel';
 import { StatusTag } from '@/components/StatusTag';
 import { EmptyState } from '@/components/EmptyState';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
+import { StoreTag } from '@/components/StoreTag';
 import type { QuestionThreadWithRelations } from '@/services/questionsService';
 import { ThreadDetailDrawer } from './thread-detail-drawer';
 
@@ -69,11 +69,9 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
                     {thread.question_text?.trim() ||
                       (isRemoved ? 'Pergunta removida/moderada pelo Mercado Livre' : 'Pergunta sem texto sincronizado')}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">
-                    {thread.marketplace_connections
-                      ? MARKETPLACE_LABELS[thread.marketplace_connections.marketplace]
-                      : '—'}
-                  </Typography>
+                  <Box whiteSpace="nowrap">
+                    <StoreTag connection={thread.marketplace_connections} />
+                  </Box>
                   <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">
                     {thread.last_message_at
                       ? formatDistanceToNow(new Date(thread.last_message_at), {

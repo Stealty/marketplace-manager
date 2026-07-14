@@ -1,4 +1,4 @@
-export type MembershipRole = 'admin' | 'atendente' | 'financeiro';
+export type MembershipRole = 'admin' | 'atendente' | 'financeiro' | 'super_admin';
 
 export type MarketplaceType =
   | 'mercado_livre'

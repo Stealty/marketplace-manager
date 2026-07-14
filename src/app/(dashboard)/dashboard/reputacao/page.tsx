@@ -1,11 +1,11 @@
-import { Box, Paper, Stack, Typography } from '@mui/material';
+import { Box, Paper, Stack } from '@mui/material';
 import { PageHeader } from '@/components/PageHeader';
 import { SectionPanel } from '@/components/SectionPanel';
 import { EmptyState } from '@/components/EmptyState';
 import { RefreshButton } from '@/components/RefreshButton';
 import { IndicatorCard } from '@/components/IndicatorCard';
 import { LastSyncedInfo } from '@/components/LastSyncedInfo';
-import { MARKETPLACE_LABELS } from '@/lib/marketplace';
+import { StoreTag } from '@/components/StoreTag';
 import { getReputationMetrics, getReputationLastSyncedAt } from '@/services/reputationService';
 import { refreshReputation } from './actions';
 
@@ -42,11 +42,7 @@ export default async function ReputacaoPage() {
             {metrics.map((metric) => (
               <Paper key={metric.id} sx={{ p: 2.5 }}>
                 <Stack spacing={1.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {metric.marketplace_connections
-                      ? MARKETPLACE_LABELS[metric.marketplace_connections.marketplace]
-                      : '—'}
-                  </Typography>
+                  <StoreTag connection={metric.marketplace_connections} />
                   <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
                     <IndicatorCard
                       label="Nível"
