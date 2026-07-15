@@ -1,19 +1,16 @@
-import { Avatar, Typography } from '@mui/material';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import { Typography } from '@mui/material';
 import type { DataListColumn } from '@/components/DataList';
+import { ProductThumbnail } from '@/components/ProductThumbnail';
 import { StatusTag } from '@/components/StatusTag';
 import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import { orderStatusTone, translateOrderStatus } from '@/lib/orderStatus';
+import { currency, dateTimeFormatter } from '@/lib/format';
 import type { OrderItemWithListing, OrderWithRelations } from '@/services/ordersService';
 import { ConferidoCheckbox } from './conferido-checkbox';
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export interface ConferenceRow extends OrderItemWithListing {
   order: OrderWithRelations;
 }
-
-const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
 export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
   {
@@ -22,19 +19,14 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     width: 56,
     hideable: false,
     spanRows: true,
-    render: (row) =>
-      row.product_listings?.image_url ? (
-        <Avatar
-          src={row.product_listings.image_url}
-          variant="rounded"
-          alt={row.title ?? 'Produto'}
-          sx={{ width: 56, height: 56 }}
-        />
-      ) : (
-        <Avatar variant="rounded" sx={{ width: 56, height: 56 }}>
-          <Inventory2OutlinedIcon fontSize="small" />
-        </Avatar>
-      ),
+    render: (row) => (
+      <ProductThumbnail
+        imageUrl={row.product_listings?.image_url}
+        alt={row.title ?? 'Produto'}
+        size={56}
+        iconFontSize="small"
+      />
+    ),
   },
   {
     id: 'loja',

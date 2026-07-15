@@ -1,14 +1,13 @@
 'use client';
 
-import { Avatar, IconButton, Stack, Typography } from '@mui/material';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import { IconButton, Stack, Typography } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { DetailDrawer } from '@/components/DetailDrawer';
+import { ProductThumbnail } from '@/components/ProductThumbnail';
 import { StatusTag } from '@/components/StatusTag';
 import { orderStatusTone, translateOrderStatus } from '@/lib/orderStatus';
+import { currency } from '@/lib/format';
 import type { OrderWithRelations } from '@/services/ordersService';
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function OrderDetailDrawer({
   order,
@@ -34,14 +33,13 @@ export function OrderDetailDrawer({
       }
     >
       <Stack spacing={2.5}>
-        <Avatar
-          src={mainImage ?? undefined}
-          variant="rounded"
+        <ProductThumbnail
+          imageUrl={mainImage}
           alt="Produto"
-          sx={{ width: 160, height: 160, alignSelf: 'center' }}
-        >
-          <Inventory2OutlinedIcon sx={{ fontSize: 48 }} />
-        </Avatar>
+          size={160}
+          iconFontSize={48}
+          sx={{ alignSelf: 'center' }}
+        />
 
         <Stack direction="row" justifyContent="space-between">
           <Typography variant="caption" color="text.secondary">

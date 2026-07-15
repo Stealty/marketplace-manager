@@ -6,10 +6,9 @@ import { DataList, type DataListColumn } from '@/components/DataList';
 import { StatusTag } from '@/components/StatusTag';
 import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
+import { currency } from '@/lib/format';
 import type { ProductListingWithRelations } from '@/services/listingsService';
 import { ListingDetailDrawer } from './listing-detail-drawer';
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 function qualityColor(score: number | null): 'success' | 'warning' | 'error' | 'inherit' {
   if (score === null) return 'inherit';

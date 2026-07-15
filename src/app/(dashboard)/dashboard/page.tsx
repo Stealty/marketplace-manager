@@ -8,8 +8,8 @@ import { getOrders } from '@/services/ordersService';
 import { getProductListings } from '@/services/listingsService';
 import { getMarketplaceConnections } from '@/services/connectionsService';
 import { getReputationMetrics } from '@/services/reputationService';
+import { currency } from '@/lib/format';
 
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const DASHBOARD_PERIOD_DAYS = 30;
 
 function isToday(dateString: string | null) {

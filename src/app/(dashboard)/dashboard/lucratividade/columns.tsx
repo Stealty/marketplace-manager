@@ -1,18 +1,16 @@
-import { Avatar, Stack, Tooltip, Typography } from '@mui/material';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import { Stack, Tooltip, Typography } from '@mui/material';
 import type { DataListColumn } from '@/components/DataList';
+import { ProductThumbnail } from '@/components/ProductThumbnail';
 import { StatusTag } from '@/components/StatusTag';
 import type { Tone } from '@/theme/tokens';
 import type { ItemProfitability } from '@/lib/profitability';
+import { currency, dateTimeFormatter } from '@/lib/format';
 import type { OrderItemWithListing, OrderWithRelations } from '@/services/ordersService';
 import { CostInput } from './cost-input';
 
 export interface ProfitabilityRow extends OrderItemWithListing, ItemProfitability {
   order: OrderWithRelations;
 }
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-const dateTimeFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
 function marginTone(pct: number | null): Tone {
   if (pct === null) return 'neutral';
@@ -30,14 +28,7 @@ export const PROFITABILITY_COLUMNS: DataListColumn<ProfitabilityRow>[] = [
     label: 'Foto',
     width: 56,
     hideable: false,
-    render: (row) =>
-      row.product_listings?.image_url ? (
-        <Avatar src={row.product_listings.image_url} variant="rounded" alt={row.title ?? 'Produto'} />
-      ) : (
-        <Avatar variant="rounded">
-          <Inventory2OutlinedIcon fontSize="small" />
-        </Avatar>
-      ),
+    render: (row) => <ProductThumbnail imageUrl={row.product_listings?.image_url} alt={row.title ?? 'Produto'} />,
   },
   {
     id: 'produto_pedido',

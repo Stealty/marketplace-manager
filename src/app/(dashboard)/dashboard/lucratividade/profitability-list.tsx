@@ -2,17 +2,14 @@
 
 import * as React from 'react';
 import { Button, FormControlLabel, MenuItem, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material';
-import { useQueryClient } from '@tanstack/react-query';
 import { DataList } from '@/components/DataList';
 import { IndicatorCard } from '@/components/IndicatorCard';
 import { computeItemProfitability } from '@/lib/profitability';
 import { isAwaitingShipment } from '@/lib/mercadolivre/shippingReadiness';
+import { currency } from '@/lib/format';
 import type { OrderWithRelations } from '@/services/ordersService';
 import { PROFITABILITY_COLUMNS, type ProfitabilityRow } from './columns';
 import { getPreciseProfitability } from './actions';
-import { ORDERS_QUERY_KEY } from './profitability-screen';
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 type Periodo = '7' | '15' | '30' | '90' | 'all';
 type Ordenacao = 'recentes' | 'lucro_desc' | 'lucro_asc' | 'margem_desc' | 'margem_asc';
@@ -38,7 +35,6 @@ function toProfitabilityRow(item: OrderWithRelations['order_items'][number], ord
 }
 
 export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) {
-  const queryClient = useQueryClient();
   const [isCalculatingPrecise, startCalculatingPrecise] = React.useTransition();
   const [preciseError, setPreciseError] = React.useState<string | null>(null);
 
@@ -62,51 +58,61 @@ export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) 
     [orders]
   );
 
-  const lojasPresentes = Array.from(
-    new Set(
-      rows
-        .map((row) => row.order.marketplace_connections?.seller_nickname ?? row.order.marketplace_connections?.label)
-        .filter((value): value is string => Boolean(value))
-    )
+  const lojasPresentes = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          rows
+            .map((row) => row.order.marketplace_connections?.seller_nickname ?? row.order.marketplace_connections?.label)
+            .filter((value): value is string => Boolean(value))
+        )
+      ),
+    [rows]
   );
 
-  const situacoesPresentes = Array.from(
-    new Set(rows.map((row) => row.order.status).filter((value): value is string => Boolean(value)))
+  const situacoesPresentes = React.useMemo(
+    () => Array.from(new Set(rows.map((row) => row.order.status).filter((value): value is string => Boolean(value)))),
+    [rows]
   );
 
-  const filteredRows = rows.filter((row) => {
-    if (loja !== 'all') {
-      const rowLoja = row.order.marketplace_connections?.seller_nickname ?? row.order.marketplace_connections?.label;
-      if (rowLoja !== loja) return false;
-    }
+  const filteredRows = React.useMemo(
+    () =>
+      rows.filter((row) => {
+        if (loja !== 'all') {
+          const rowLoja = row.order.marketplace_connections?.seller_nickname ?? row.order.marketplace_connections?.label;
+          if (rowLoja !== loja) return false;
+        }
 
-    if (situacao !== 'all' && row.order.status !== situacao) return false;
+        if (situacao !== 'all' && row.order.status !== situacao) return false;
 
-    if (apenasAguardandoEnvio && !isAwaitingShipment(row.order)) return false;
+        if (apenasAguardandoEnvio && !isAwaitingShipment(row.order)) return false;
 
-    if (busca.trim()) {
-      const query = busca.trim().toLowerCase();
-      const skuValue = (row.productSku ?? row.sku ?? '').toLowerCase();
-      const titleValue = (row.product_listings?.products?.title ?? row.title ?? '').toLowerCase();
-      if (!skuValue.includes(query) && !titleValue.includes(query)) return false;
-    }
+        if (busca.trim()) {
+          const query = busca.trim().toLowerCase();
+          const skuValue = (row.productSku ?? row.sku ?? '').toLowerCase();
+          const titleValue = (row.product_listings?.products?.title ?? row.title ?? '').toLowerCase();
+          if (!skuValue.includes(query) && !titleValue.includes(query)) return false;
+        }
 
-    if (periodo !== 'all') {
-      if (!row.order.ordered_at) return false;
-      const cutoff = now - Number(periodo) * 24 * 60 * 60 * 1000;
-      if (new Date(row.order.ordered_at).getTime() < cutoff) return false;
-    }
+        if (periodo !== 'all') {
+          if (!row.order.ordered_at) return false;
+          const cutoff = now - Number(periodo) * 24 * 60 * 60 * 1000;
+          if (new Date(row.order.ordered_at).getTime() < cutoff) return false;
+        }
 
-    return true;
-  });
+        return true;
+      }),
+    [rows, loja, situacao, apenasAguardandoEnvio, busca, periodo, now]
+  );
 
   // Repasse líquido preciso (via Mercado Pago) só é calculável sob demanda
   // para um período limitado — "Todo o período" pode significar milhares de
   // pedidos, uma chamada de API por pagamento cada. Só considera pedidos que
   // ainda não têm o valor preciso calculado (evita rechamar a API para o que
   // já foi persistido em visitas anteriores).
-  const pendingPreciseOrderIds = Array.from(
-    new Set(filteredRows.filter((row) => !row.repasseIsPrecise).map((row) => row.order.id))
+  const pendingPreciseOrderIds = React.useMemo(
+    () => Array.from(new Set(filteredRows.filter((row) => !row.repasseIsPrecise).map((row) => row.order.id))),
+    [filteredRows]
   );
   const podeCalcularPreciso = periodo !== 'all' && pendingPreciseOrderIds.length > 0;
 
@@ -116,9 +122,10 @@ export function ProfitabilityList({ orders }: { orders: OrderWithRelations[] }) 
       const result = await getPreciseProfitability(pendingPreciseOrderIds);
       if (result.error) {
         setPreciseError(result.error);
-        return;
       }
-      await queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
+      // getPreciseProfitability já chama revalidatePath('/dashboard/lucratividade')
+      // no servidor — o Next.js re-renderiza a rota automaticamente após a
+      // Server Action resolver, sem precisar invalidar cache no cliente.
     });
   }
 

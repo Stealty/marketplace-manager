@@ -16,6 +16,7 @@ import {
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { StatusTag } from '@/components/StatusTag';
 import type { ClaimReturnReviewAction } from '@/lib/mercadolivre/client';
+import { senderLabel } from '@/lib/format';
 import type { ClaimWithRelations } from '@/services/claimsService';
 import { reviewReturn, sendClaimReply } from './actions';
 
@@ -238,7 +239,7 @@ export function ClaimDetailDrawer({
               .map((message) => (
                 <Box key={message.id}>
                   <Typography variant="caption" fontWeight={700}>
-                    {message.sender}
+                    {senderLabel(message.sender)}
                   </Typography>
                   <Typography variant="body2">{message.body}</Typography>
                 </Box>

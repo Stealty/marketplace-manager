@@ -6,10 +6,9 @@ import { DetailDrawer } from '@/components/DetailDrawer';
 import { ExternalLinkButton } from '@/components/ExternalLinkButton';
 import { InlineEditableValue } from '@/components/InlineEditableValue';
 import { StatusTag } from '@/components/StatusTag';
+import { currency } from '@/lib/format';
 import type { ProductListingWithRelations } from '@/services/listingsService';
 import { toggleListingStatus, updateListingPrice, updateListingStock } from './actions';
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 function parsePrice(raw: string): number | null {
   const normalized = raw.replace(',', '.');

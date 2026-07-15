@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { ExternalLinkButton } from '@/components/ExternalLinkButton';
+import { senderLabel } from '@/lib/format';
 import type { QuestionThreadWithRelations } from '@/services/questionsService';
 import { answerThread } from './actions';
 
@@ -126,7 +127,7 @@ export function ThreadDetailDrawer({
               .map((message) => (
                 <Box key={message.id}>
                   <Typography variant="caption" fontWeight={700}>
-                    {message.sender}
+                    {senderLabel(message.sender)}
                   </Typography>
                   <Typography variant="body2">
                     {message.body?.trim() || 'Mensagem sem texto sincronizado.'}

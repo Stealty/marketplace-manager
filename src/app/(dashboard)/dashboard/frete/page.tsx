@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { IndicatorCard } from '@/components/IndicatorCard';
 import { RefreshButton } from '@/components/RefreshButton';
 import { LastSyncedInfo } from '@/components/LastSyncedInfo';
+import { currency } from '@/lib/format';
 import { getOrders, getOrdersLastSyncedAt } from '@/services/ordersService';
 import { FreightChart } from './freight-chart';
 import { DetailSection } from './detail-section';
@@ -16,8 +17,6 @@ const BUCKETS = [
   { label: '10–15%', min: 10, max: 15 },
   { label: '15%+', min: 15, max: Infinity },
 ];
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default async function FretePage() {
   const [orders, lastSuccessAt] = await Promise.all([getOrders(), getOrdersLastSyncedAt()]);

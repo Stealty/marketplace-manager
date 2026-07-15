@@ -1,9 +1,8 @@
 import { StatusTag } from '@/components/StatusTag';
 import type { DataListColumn } from '@/components/DataList';
 import { StoreTag, storeSortValue } from '@/components/StoreTag';
+import { currency } from '@/lib/format';
 import type { OrderWithRelations } from '@/services/ordersService';
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
   {

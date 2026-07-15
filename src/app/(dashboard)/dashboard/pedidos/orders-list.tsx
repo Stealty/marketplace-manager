@@ -48,52 +48,59 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
 
   const selected = orders.find((order) => order.id === selectedOrderId) ?? null;
 
-  const rows: ConferenceRow[] = orders.flatMap((order) =>
-    order.order_items.map((item) => ({ ...item, order })),
+  const rows: ConferenceRow[] = React.useMemo(
+    () => orders.flatMap((order) => order.order_items.map((item) => ({ ...item, order }))),
+    [orders],
   );
 
-  const lojasPresentes = Array.from(
-    new Set(
-      rows
-        .map(
-          (row) =>
+  const lojasPresentes = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          rows
+            .map(
+              (row) =>
+                row.order.marketplace_connections?.seller_nickname ??
+                row.order.marketplace_connections?.label,
+            )
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    [rows],
+  );
+
+  const rowsMatchingOtherFilters = React.useMemo(
+    () =>
+      rows.filter((row) => {
+        if (loja !== "all") {
+          const rowLoja =
             row.order.marketplace_connections?.seller_nickname ??
-            row.order.marketplace_connections?.label,
-        )
-        .filter((value): value is string => Boolean(value)),
-    ),
+            row.order.marketplace_connections?.label;
+          if (rowLoja !== loja) return false;
+        }
+
+        if (sku.trim()) {
+          const skuValue = (
+            row.product_listings?.products?.sku ??
+            row.sku ??
+            ""
+          ).toLowerCase();
+          if (!skuValue.includes(sku.trim().toLowerCase())) return false;
+        }
+
+        if (dateFrom || dateTo) {
+          if (!row.order.ordered_at) return false;
+          const orderedAt = new Date(row.order.ordered_at).getTime();
+          if (dateFrom && orderedAt < new Date(`${dateFrom}T00:00:00`).getTime())
+            return false;
+          if (dateTo && orderedAt > new Date(`${dateTo}T23:59:59`).getTime())
+            return false;
+        }
+
+        return true;
+      }),
+    [rows, loja, sku, dateFrom, dateTo],
   );
-
-  const matchesOtherFilters = (row: ConferenceRow) => {
-    if (loja !== "all") {
-      const rowLoja =
-        row.order.marketplace_connections?.seller_nickname ??
-        row.order.marketplace_connections?.label;
-      if (rowLoja !== loja) return false;
-    }
-
-    if (sku.trim()) {
-      const skuValue = (
-        row.product_listings?.products?.sku ??
-        row.sku ??
-        ""
-      ).toLowerCase();
-      if (!skuValue.includes(sku.trim().toLowerCase())) return false;
-    }
-
-    if (dateFrom || dateTo) {
-      if (!row.order.ordered_at) return false;
-      const orderedAt = new Date(row.order.ordered_at).getTime();
-      if (dateFrom && orderedAt < new Date(`${dateFrom}T00:00:00`).getTime())
-        return false;
-      if (dateTo && orderedAt > new Date(`${dateTo}T23:59:59`).getTime())
-        return false;
-    }
-
-    return true;
-  };
-
-  const rowsMatchingOtherFilters = rows.filter(matchesOtherFilters);
 
   const totalCount = rowsMatchingOtherFilters.length;
   const conferidoCount = rowsMatchingOtherFilters.filter(
@@ -101,11 +108,15 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
   ).length;
   const pendenteCount = totalCount - conferidoCount;
 
-  const filteredRows = rowsMatchingOtherFilters.filter((row) => {
-    if (conferidoFilter === "conferido" && !row.conferido) return false;
-    if (conferidoFilter === "pendente" && row.conferido) return false;
-    return true;
-  });
+  const filteredRows = React.useMemo(
+    () =>
+      rowsMatchingOtherFilters.filter((row) => {
+        if (conferidoFilter === "conferido" && !row.conferido) return false;
+        if (conferidoFilter === "pendente" && row.conferido) return false;
+        return true;
+      }),
+    [rowsMatchingOtherFilters, conferidoFilter],
+  );
 
   function toggleConferidoFilter(value: ConferidoFilter) {
     setConferidoFilter((prev) => (prev === value ? "all" : value));

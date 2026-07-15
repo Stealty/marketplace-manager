@@ -2,15 +2,8 @@
 
 import { Tooltip, Typography } from '@mui/material';
 import { InlineEditableValue } from '@/components/InlineEditableValue';
+import { currency, parseCost } from '@/lib/format';
 import { saveCost } from './actions';
-
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-function parseCost(raw: string): number | null {
-  const normalized = raw.replace(',', '.');
-  const value = Number(normalized);
-  return Number.isFinite(value) && value >= 0 ? value : null;
-}
 
 export function CostInput({ productSku, unitCost }: { productSku: string | null; unitCost: number | null }) {
   if (!productSku) {
