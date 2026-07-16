@@ -7,18 +7,18 @@ import { NavList } from './nav-list';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ThemePresetToggle } from '@/components/ThemePresetToggle';
 import { LogoutButton } from '@/components/LogoutButton';
-import { ExpiredConnectionsBanner, type ExpiredConnectionInfo } from './expired-connections-banner';
+import { SyncWarningsBanner, type SyncWarning } from './sync-warnings-banner';
 
 const SIDEBAR_WIDTH = 240;
 
 export function AppShell({
   userEmail,
-  expiredConnections,
+  warnings,
   showAdmin,
   children,
 }: {
   userEmail: string | null;
-  expiredConnections: ExpiredConnectionInfo[];
+  warnings: SyncWarning[];
   showAdmin: boolean;
   children: React.ReactNode;
 }) {
@@ -108,7 +108,7 @@ export function AppShell({
           </Toolbar>
         </AppBar>
         <Box component="main" sx={{ p: { xs: 2, sm: 3 } }}>
-          <ExpiredConnectionsBanner connections={expiredConnections} />
+          <SyncWarningsBanner warnings={warnings} />
           {children}
         </Box>
       </Box>

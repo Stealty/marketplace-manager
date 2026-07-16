@@ -23,6 +23,15 @@ export const SYNC_TTL_MINUTES = {
 
 export type SyncResource = keyof typeof SYNC_TTL_MINUTES;
 
+export const SYNC_RESOURCE_LABELS: Record<SyncResource, string> = {
+  orders: 'Pedidos',
+  questions: 'Perguntas',
+  claims: 'Reclamações e devoluções',
+  listings: 'Anúncios',
+  reputation: 'Reputação',
+  profile: 'Perfil da conta',
+};
+
 // Grava o resultado de uma tentativa de sync. last_synced_at marca toda
 // tentativa (usado por isStale/ensureFresh para decidir quando tentar de
 // novo); last_success_at só avança quando status !== 'error', preservando o
