@@ -5,10 +5,10 @@ import { Checkbox, Tooltip } from '@mui/material';
 import { toggleOrderItemConferido } from './actions';
 
 export function ConferidoCheckbox({
-  orderItemId,
+  orderItemIds,
   conferido,
 }: {
-  orderItemId: string;
+  orderItemIds: string[];
   conferido: boolean;
 }) {
   const [checked, setChecked] = React.useState(conferido);
@@ -21,7 +21,7 @@ export function ConferidoCheckbox({
     setChecked(next);
     setError(null);
     startTransition(async () => {
-      const result = await toggleOrderItemConferido(orderItemId, next);
+      const result = await toggleOrderItemConferido(orderItemIds, next);
       if (result.error) {
         setChecked(!next);
         setError(result.error);

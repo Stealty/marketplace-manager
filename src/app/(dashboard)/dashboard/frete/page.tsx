@@ -9,22 +9,28 @@ import { currency } from '@/lib/format';
 import { getOrders, getOrdersLastSyncedAt } from '@/services/ordersService';
 import { FreightChart } from './freight-chart';
 import { DetailSection } from './detail-section';
+import { sellerFreightRatio } from './columns';
 import { refreshOrders } from './actions';
 
+// Faixas baseadas no custo do vendedor (base do painel legado), ecoando a
+// severidade que o app antigo usava: até 20% ok, 20–50% atenção, acima crítico.
 const BUCKETS = [
-  { label: '0–5%', min: 0, max: 5 },
-  { label: '5–10%', min: 5, max: 10 },
-  { label: '10–15%', min: 10, max: 15 },
-  { label: '15%+', min: 15, max: Infinity },
+  { label: '0–10%', min: 0, max: 10 },
+  { label: '10–20%', min: 10, max: 20 },
+  { label: '20–50%', min: 20, max: 50 },
+  { label: '50%+', min: 50, max: Infinity },
 ];
 
 export default async function FretePage() {
   const [orders, lastSuccessAt] = await Promise.all([getOrders(), getOrdersLastSyncedAt()]);
-  const withRatio = orders.filter((order) => order.freight_ratio !== null);
+
+  // Ratio de referência = custo do vendedor / valor do pedido (base do legado).
+  const ratioByOrderId = new Map(orders.map((order) => [order.id, sellerFreightRatio(order)]));
+  const withRatio = orders.filter((order) => ratioByOrderId.get(order.id) !== null);
 
   const avgRatio =
     withRatio.length > 0
-      ? withRatio.reduce((sum, order) => sum + (order.freight_ratio ?? 0), 0) / withRatio.length
+      ? withRatio.reduce((sum, order) => sum + (ratioByOrderId.get(order.id) ?? 0), 0) / withRatio.length
       : null;
 
   const freeShippingPct =
@@ -34,17 +40,17 @@ export default async function FretePage() {
 
   const totalFreight = orders.reduce((sum, order) => sum + (order.freight_value ?? 0), 0);
 
-  // freight_value reflete o que o COMPRADOR pagou pelo frete (0 em pedidos com
-  // frete grátis) — não é o custo que o vendedor efetivamente absorve. Ver
-  // NOTE em ordersSync.ts/migration 0013 para a estimativa usada aqui.
+  // freight_cost_seller: custo que o vendedor absorve (senders[].cost). É a base
+  // das métricas; freight_value (o que o comprador pagou) fica só na exibição.
   const ordersWithSellerFreightCost = orders.filter((order) => order.freight_cost_seller !== null);
   const totalSellerFreightCost = orders.reduce((sum, order) => sum + (order.freight_cost_seller ?? 0), 0);
 
   const chartData = BUCKETS.map((bucket) => ({
     bucket: bucket.label,
-    count: withRatio.filter(
-      (order) => (order.freight_ratio ?? 0) >= bucket.min && (order.freight_ratio ?? 0) < bucket.max
-    ).length,
+    count: withRatio.filter((order) => {
+      const ratio = ratioByOrderId.get(order.id) ?? 0;
+      return ratio >= bucket.min && ratio < bucket.max;
+    }).length,
   }));
 
   return (
@@ -63,9 +69,9 @@ export default async function FretePage() {
 
       <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
         <IndicatorCard
-          label="% Frete/Pedido médio"
+          label="% Frete (vendedor)/Pedido médio"
           value={avgRatio !== null ? `${avgRatio.toFixed(1)}%` : '—'}
-          tone={avgRatio !== null && avgRatio > 10 ? 'error' : 'success'}
+          tone={avgRatio !== null && avgRatio > 20 ? 'error' : 'success'}
         />
         <IndicatorCard
           label="Pedidos com frete grátis"

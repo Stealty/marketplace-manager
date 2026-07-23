@@ -16,7 +16,7 @@ import {
 import { DetailDrawer } from '@/components/DetailDrawer';
 import { StatusTag } from '@/components/StatusTag';
 import type { ClaimReturnReviewAction } from '@/lib/mercadolivre/client';
-import { senderLabel } from '@/lib/format';
+import { claimStageLabel, claimStatusLabel, senderLabel } from '@/lib/format';
 import type { ClaimWithRelations } from '@/services/claimsService';
 import { reviewReturn, sendClaimReply } from './actions';
 
@@ -174,7 +174,10 @@ export function ClaimDetailDrawer({
             Status
           </Typography>
           {claim.status ? (
-            <StatusTag label={`${claim.stage ? `${claim.stage} · ` : ''}${claim.status}`} tone="neutral" />
+            <StatusTag
+              label={`${claim.stage ? `${claimStageLabel(claim.stage)} · ` : ''}${claimStatusLabel(claim.status)}`}
+              tone="neutral"
+            />
           ) : (
             '—'
           )}

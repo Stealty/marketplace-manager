@@ -18,6 +18,7 @@ export function DetailSection({ orders }: { orders: OrderWithRelations[] }) {
         getRowId={(row) => row.id}
         onRowClick={(row) => setSelectedId(row.id)}
         storageKey="frete"
+        defaultSort={{ columnId: 'freight_cost_seller', direction: 'desc' }}
         emptyMessage="Nenhum pedido sincronizado ainda."
       />
       <OrderDetailDrawer order={selected} onClose={() => setSelectedId(null)} />

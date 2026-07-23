@@ -5,7 +5,11 @@ import { Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { DataList } from "@/components/DataList";
 import type { OrderWithRelations } from "@/services/ordersService";
 import { isAwaitingShipment } from "@/lib/mercadolivre/shippingReadiness";
-import { CONFERENCE_COLUMNS, type ConferenceRow } from "./columns";
+import {
+  CONFERENCE_COLUMNS,
+  groupOrdersIntoConference,
+  type ConferenceGroup,
+} from "./columns";
 import { OrderDetailDrawer } from "./order-detail-drawer";
 
 type ConferidoFilter = "all" | "conferido" | "pendente";
@@ -73,53 +77,43 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
     };
   }, []);
 
-  const selected = orders.find((order) => order.id === selectedOrderId) ?? null;
+  const groups = React.useMemo(() => groupOrdersIntoConference(orders), [orders]);
 
-  const rows: ConferenceRow[] = React.useMemo(
-    () => orders.flatMap((order) => order.order_items.map((item) => ({ ...item, order }))),
-    [orders],
-  );
+  const selected =
+    groups.find((group) => group.primaryOrder.id === selectedOrderId)?.primaryOrder ?? null;
+
+  const lojaOf = (group: ConferenceGroup) =>
+    group.primaryOrder.marketplace_connections?.seller_nickname ??
+    group.primaryOrder.marketplace_connections?.label;
 
   const lojasPresentes = React.useMemo(
     () =>
       Array.from(
-        new Set(
-          rows
-            .map(
-              (row) =>
-                row.order.marketplace_connections?.seller_nickname ??
-                row.order.marketplace_connections?.label,
-            )
-            .filter((value): value is string => Boolean(value)),
-        ),
+        new Set(groups.map(lojaOf).filter((value): value is string => Boolean(value))),
       ),
-    [rows],
+    [groups],
   );
 
   const rowsMatchingOtherFilters = React.useMemo(
     () =>
-      rows.filter((row) => {
-        if (loja !== "all") {
-          const rowLoja =
-            row.order.marketplace_connections?.seller_nickname ??
-            row.order.marketplace_connections?.label;
-          if (rowLoja !== loja) return false;
-        }
+      groups.filter((group) => {
+        if (loja !== "all" && lojaOf(group) !== loja) return false;
 
-        if (!matchesSituacao(row.order, situacao)) return false;
+        if (!matchesSituacao(group.primaryOrder, situacao)) return false;
 
         if (sku.trim()) {
-          const skuValue = (
-            row.product_listings?.products?.sku ??
-            row.sku ??
-            ""
-          ).toLowerCase();
-          if (!skuValue.includes(sku.trim().toLowerCase())) return false;
+          const query = sku.trim().toLowerCase();
+          const matchesSku = group.items.some((item) =>
+            (item.product_listings?.products?.sku ?? item.sku ?? "")
+              .toLowerCase()
+              .includes(query),
+          );
+          if (!matchesSku) return false;
         }
 
         if (dateFrom || dateTo) {
-          if (!row.order.ordered_at) return false;
-          const orderedAt = new Date(row.order.ordered_at).getTime();
+          if (!group.primaryOrder.ordered_at) return false;
+          const orderedAt = new Date(group.primaryOrder.ordered_at).getTime();
           if (dateFrom && orderedAt < new Date(`${dateFrom}T00:00:00`).getTime())
             return false;
           if (dateTo && orderedAt > new Date(`${dateTo}T23:59:59`).getTime())
@@ -128,20 +122,20 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
 
         return true;
       }),
-    [rows, loja, situacao, sku, dateFrom, dateTo],
+    [groups, loja, situacao, sku, dateFrom, dateTo],
   );
 
   const totalCount = rowsMatchingOtherFilters.length;
   const conferidoCount = rowsMatchingOtherFilters.filter(
-    (row) => row.conferido,
+    (group) => group.allConferido,
   ).length;
   const pendenteCount = totalCount - conferidoCount;
 
   const filteredRows = React.useMemo(
     () =>
-      rowsMatchingOtherFilters.filter((row) => {
-        if (conferidoFilter === "conferido" && !row.conferido) return false;
-        if (conferidoFilter === "pendente" && row.conferido) return false;
+      rowsMatchingOtherFilters.filter((group) => {
+        if (conferidoFilter === "conferido" && !group.allConferido) return false;
+        if (conferidoFilter === "pendente" && group.allConferido) return false;
         return true;
       }),
     [rowsMatchingOtherFilters, conferidoFilter],
@@ -270,17 +264,21 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
       <DataList
         columns={CONFERENCE_COLUMNS}
         rows={filteredRows}
-        getRowId={(row) => row.id}
-        onRowClick={(row) => setSelectedOrderId(row.order.id)}
+        getRowId={(group) => group.groupId}
+        onRowClick={(group) => setSelectedOrderId(group.primaryOrder.id)}
         maxHeight={tableMaxHeight}
         storageKey="pedidos"
-        renderRowTitle={(row) => (
+        renderRowTitle={(group) => (
           <Typography variant="body2" fontWeight={600} noWrap>
-            {row.product_listings?.products?.title ?? row.title ?? 'Item sem título'}
+            {group.isPack
+              ? `Compra com ${group.items.length} itens`
+              : group.items[0]?.product_listings?.products?.title ??
+                group.items[0]?.title ??
+                'Item sem título'}
           </Typography>
         )}
         emptyMessage={
-          rows.length === 0
+          groups.length === 0
             ? "Nenhum pedido sincronizado ainda."
             : "Nenhum pedido encontrado para os filtros selecionados."
         }

@@ -4,6 +4,16 @@ import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import { currency } from '@/lib/format';
 import type { OrderWithRelations } from '@/services/ordersService';
 
+// A base do painel legado é o custo que o VENDEDOR absorve (senders[].cost em
+// /shipments/{id}/costs), não o que o comprador pagou. O ratio segue essa base:
+// custo do vendedor sobre o valor do pedido.
+export function sellerFreightRatio(
+  order: Pick<OrderWithRelations, 'freight_cost_seller' | 'order_value'>
+): number | null {
+  if (order.freight_cost_seller === null || !order.order_value) return null;
+  return (order.freight_cost_seller / order.order_value) * 100;
+}
+
 export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
   {
     id: 'external_order_id',
@@ -29,20 +39,31 @@ export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
     render: (row) => (row.order_value !== null ? currency.format(row.order_value) : '—'),
   },
   {
+    id: 'freight_cost_seller',
+    label: 'Frete (vendedor)',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.freight_cost_seller,
+    render: (row) => (row.freight_cost_seller !== null ? currency.format(row.freight_cost_seller) : '—'),
+  },
+  {
     id: 'freight_value',
-    label: 'Frete',
+    label: 'Frete (comprador)',
     align: 'right',
     sortable: true,
     sortValue: (row) => row.freight_value,
     render: (row) => (row.freight_value !== null ? currency.format(row.freight_value) : '—'),
   },
   {
-    id: 'freight_ratio',
-    label: '%',
+    id: 'seller_freight_ratio',
+    label: '% (vendedor)',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.freight_ratio,
-    render: (row) => (row.freight_ratio !== null ? `${row.freight_ratio.toFixed(1)}%` : '—'),
+    sortValue: (row) => sellerFreightRatio(row),
+    render: (row) => {
+      const ratio = sellerFreightRatio(row);
+      return ratio !== null ? `${ratio.toFixed(1)}%` : '—';
+    },
   },
   {
     id: 'is_free_shipping',

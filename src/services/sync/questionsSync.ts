@@ -18,18 +18,22 @@ export async function syncAllQuestions(supabase: SupabaseClient): Promise<void> 
   }
 }
 
-// Perguntas banidas/removidas/desativadas pelo ML voltam com `text` vazio por
-// moderação — não é um pedido pendente de resposta real, então não deve
-// aparecer na fila de pendências como se fosse um problema de sync.
-// UNDER_REVIEW também pode voltar com `text` vazio enquanto a moderação
-// corre (confirmado comparando com o app legado, que só sincroniza
-// UNANSWERED e por isso nunca precisou tratar esse caso) — o sinal
-// confiável de "não há nada para responder" é o texto vazio em si, não uma
-// lista fixa de status.
+export type ThreadStatus = 'answered' | 'pending' | 'under_review' | 'closed' | 'removed';
+
+// Banidas/removidas/desativadas pelo ML: bloqueadas de fato, não voltam a ser
+// respondíveis. UNDER_REVIEW é transitória (em moderação — pode voltar como
+// pendente) e por isso NÃO é escondida: vira 'under_review' e continua visível
+// (antes caía em 'removed' por vir com texto vazio e sumia da fila).
+// CLOSED_UNANSWERED foi encerrada sem resposta e não aceita mais resposta —
+// vira 'closed' para não ser rotulada "Pendente" com uma caixa de resposta que
+// falharia no ML. Texto vazio nos demais status segue sendo tratado como
+// removido (moderação), como antes.
 const BLOCKED_QUESTION_STATUSES = new Set(['BANNED', 'DELETED', 'DISABLED']);
 
-function resolveThreadStatus(question: MercadoLivreQuestion): 'answered' | 'pending' | 'removed' {
+function resolveThreadStatus(question: MercadoLivreQuestion): ThreadStatus {
   if (BLOCKED_QUESTION_STATUSES.has(question.status)) return 'removed';
+  if (question.status === 'CLOSED_UNANSWERED') return 'closed';
+  if (question.status === 'UNDER_REVIEW') return 'under_review';
   if (!question.text?.trim()) return 'removed';
   return question.answer ? 'answered' : 'pending';
 }
@@ -82,19 +86,27 @@ async function upsertQuestion(
 
   if (error) throw error;
 
-  // Pergunta removida/banida sem texto — não grava chat_messages vazio
-  // (upsert exigiria `body` para uma mensagem que nunca existiu de fato).
-  if (status === 'removed' && !question.text) return;
+  // Não grava chat_messages com corpo vazio (pergunta moderada/em análise sem
+  // texto) — o upsert exige `body`, e a UI já mostra um texto de fallback. Só
+  // registra a mensagem do comprador quando há texto e a do vendedor quando há
+  // resposta; sem nenhuma das duas, mantém só a thread (para continuar visível).
+  const messages: {
+    org_id: string;
+    thread_id: string;
+    sender: string;
+    body: string;
+    sent_at: string;
+  }[] = [];
 
-  const messages = [
-    {
+  if (question.text?.trim()) {
+    messages.push({
       org_id: connection.org_id,
       thread_id: thread.id,
       sender: 'buyer',
       body: question.text,
       sent_at: question.date_created,
-    },
-  ];
+    });
+  }
 
   if (question.answer) {
     messages.push({
@@ -105,6 +117,8 @@ async function upsertQuestion(
       sent_at: question.answer.date_created,
     });
   }
+
+  if (messages.length === 0) return;
 
   // upsert (não delete+insert) — idempotente mesmo se outro sync da mesma
   // conexão estiver rodando em paralelo (ensureFresh não trava contra isso).

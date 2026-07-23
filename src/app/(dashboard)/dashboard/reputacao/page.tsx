@@ -6,10 +6,20 @@ import { RefreshButton } from '@/components/RefreshButton';
 import { IndicatorCard } from '@/components/IndicatorCard';
 import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { StoreTag } from '@/components/StoreTag';
+import { powerSellerLabel, reputationLevelLabel } from '@/lib/format';
 import { getReputationMetrics, getReputationLastSyncedAt } from '@/services/reputationService';
 import { refreshReputation } from './actions';
 
 const percent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 });
+
+// Cor do termômetro de reputação do ML (level_id "5_green".."1_red").
+function levelTone(levelId: string | null): 'success' | 'warning' | 'error' | 'accent' {
+  if (!levelId) return 'accent';
+  if (levelId.includes('green')) return 'success';
+  if (levelId.includes('yellow')) return 'warning';
+  if (levelId.includes('orange') || levelId.includes('red')) return 'error';
+  return 'accent';
+}
 
 export default async function ReputacaoPage() {
   const [metrics, lastSuccessAt] = await Promise.all([getReputationMetrics(), getReputationLastSyncedAt()]);
@@ -46,12 +56,16 @@ export default async function ReputacaoPage() {
                   <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
                     <IndicatorCard
                       label="Nível"
-                      value={metric.metrics.level_id ?? '—'}
-                      tone="accent"
+                      value={metric.metrics.level_id ? reputationLevelLabel(metric.metrics.level_id) : '—'}
+                      tone={levelTone(metric.metrics.level_id)}
                     />
                     <IndicatorCard
                       label="Power Seller"
-                      value={metric.metrics.power_seller_status ?? '—'}
+                      value={
+                        metric.metrics.power_seller_status
+                          ? powerSellerLabel(metric.metrics.power_seller_status)
+                          : '—'
+                      }
                       tone={metric.metrics.power_seller_status ? 'success' : 'neutral'}
                     />
                     <IndicatorCard

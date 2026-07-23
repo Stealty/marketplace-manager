@@ -19,6 +19,7 @@ import { ExternalLinkButton } from '@/components/ExternalLinkButton';
 import { senderLabel } from '@/lib/format';
 import type { QuestionThreadWithRelations } from '@/services/questionsService';
 import { answerThread } from './actions';
+import { threadEmptyText, isAnswerable } from './status';
 
 function AnswerForm({ threadId }: { threadId: string }) {
   const [text, setText] = React.useState('');
@@ -93,17 +94,11 @@ export function ThreadDetailDrawer({
 }) {
   if (!thread) return null;
 
-  const isPending = thread.status === 'pending';
-  const isRemoved = thread.status === 'removed';
-
   return (
     <DetailDrawer
       open={Boolean(thread)}
       onClose={onClose}
-      title={
-        thread.question_text?.trim() ||
-        (isRemoved ? 'Pergunta removida/moderada pelo Mercado Livre' : 'Pergunta sem texto sincronizado')
-      }
+      title={thread.question_text?.trim() || threadEmptyText(thread.status)}
       subtitle={
         thread.marketplace_connections
           ? thread.marketplace_connections.seller_nickname ?? thread.marketplace_connections.label
@@ -136,7 +131,7 @@ export function ThreadDetailDrawer({
               ))
           )}
         </Stack>
-        {isPending && <AnswerForm threadId={thread.id} />}
+        {isAnswerable(thread.status) && <AnswerForm threadId={thread.id} />}
       </Stack>
     </DetailDrawer>
   );

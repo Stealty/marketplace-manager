@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { DataList, type DataListColumn } from '@/components/DataList';
 import { StatusTag } from '@/components/StatusTag';
 import { StoreTag, storeSortValue } from '@/components/StoreTag';
+import { claimStageLabel, claimStatusLabel, claimTypeLabel } from '@/lib/format';
 import type { ClaimWithRelations } from '@/services/claimsService';
 import { ClaimDetailDrawer } from './claim-detail-drawer';
 
@@ -18,7 +19,7 @@ const columns: DataListColumn<ClaimWithRelations>[] = [
     label: 'Tipo',
     sortable: true,
     sortValue: (row) => row.type,
-    render: (row) => row.type ?? '—',
+    render: (row) => (row.type ? claimTypeLabel(row.type) : '—'),
   },
   {
     id: 'reason',
@@ -33,7 +34,7 @@ const columns: DataListColumn<ClaimWithRelations>[] = [
     render: (row) =>
       row.status ? (
         <StatusTag
-          label={`${row.stage ? `${row.stage} · ` : ''}${row.status}`}
+          label={`${row.stage ? `${claimStageLabel(row.stage)} · ` : ''}${claimStatusLabel(row.status)}`}
           tone={row.status === 'closed' ? 'neutral' : 'warning'}
         />
       ) : (

@@ -33,12 +33,16 @@ export async function refreshOrders(): Promise<{ error?: string }> {
   return {};
 }
 
+// Conferência é por PACOTE (padrão do app legado: um "conferido" cobre a compra
+// inteira). Recebe todos os order_items do grupo e marca de uma vez — para a
+// compra de item único é só um id.
 export async function toggleOrderItemConferido(
-  orderItemId: string,
+  orderItemIds: string[],
   conferido: boolean
 ): Promise<{ error?: string }> {
+  if (orderItemIds.length === 0) return {};
   const supabase = await createClient();
-  const { error } = await supabase.from('order_items').update({ conferido }).eq('id', orderItemId);
+  const { error } = await supabase.from('order_items').update({ conferido }).in('id', orderItemIds);
   if (error) return { error: error.message };
   revalidatePath('/dashboard/pedidos');
   return {};

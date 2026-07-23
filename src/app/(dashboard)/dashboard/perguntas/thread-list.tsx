@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { StoreTag } from '@/components/StoreTag';
 import type { QuestionThreadWithRelations } from '@/services/questionsService';
 import { ThreadDetailDrawer } from './thread-detail-drawer';
+import { threadStatusMeta, threadEmptyText } from './status';
 
 type Filter = 'pending' | 'answered' | 'all';
 
@@ -45,10 +46,7 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
       ) : (
         <Stack divider={<Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }} />}>
           {filtered.map((thread) => {
-            const isPending = thread.status === 'pending';
-            const isRemoved = thread.status === 'removed';
-            const statusLabel = isPending ? 'Pendente' : isRemoved ? 'Removida pelo ML' : 'Respondida';
-            const statusTone = isPending ? 'warning' : isRemoved ? 'neutral' : 'success';
+            const meta = threadStatusMeta(thread.status);
             return (
               <Box
                 key={thread.id}
@@ -64,10 +62,9 @@ export function ThreadList({ threads }: { threads: QuestionThreadWithRelations[]
                   spacing={1.5}
                   alignItems={{ xs: 'flex-start', sm: 'center' }}
                 >
-                  <StatusTag label={statusLabel} tone={statusTone} />
+                  <StatusTag label={meta.label} tone={meta.tone} />
                   <Typography variant="body2" sx={{ flexGrow: 1 }} noWrap>
-                    {thread.question_text?.trim() ||
-                      (isRemoved ? 'Pergunta removida/moderada pelo Mercado Livre' : 'Pergunta sem texto sincronizado')}
+                    {thread.question_text?.trim() || threadEmptyText(thread.status)}
                   </Typography>
                   <Box whiteSpace="nowrap">
                     <StoreTag connection={thread.marketplace_connections} />
