@@ -12,10 +12,14 @@ export interface ProfitabilityRow extends OrderItemWithListing, ItemProfitabilit
   order: OrderWithRelations;
 }
 
+// Mesmas faixas do painel legado (lucratividade.html pctClass): margem sobre
+// custo abaixo de 10% é crítica (vermelho), até 20% é atenção (amarelo), acima
+// disso é saudável (verde). Antes o novo só pintava de vermelho o prejuízo real
+// (< 0), escondendo margens positivas porém baixas que a produção sinaliza.
 function marginTone(pct: number | null): Tone {
   if (pct === null) return 'neutral';
-  if (pct < 0) return 'error';
-  if (pct < 20) return 'warning';
+  if (pct < 10) return 'error';
+  if (pct <= 20) return 'warning';
   return 'success';
 }
 

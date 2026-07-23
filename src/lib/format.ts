@@ -19,6 +19,22 @@ export function senderLabel(sender: string): string {
   return SENDER_LABELS[sender.toLowerCase()] ?? sender;
 }
 
+// status do anúncio vem cru do ML ('active'/'paused'/'closed'/...). O painel
+// legado (top100.html) exibia ATIVO/PAUSADO/FECHADO — mapeia para pt-BR e cai
+// para o próprio valor em vez de mostrar o inglês cru.
+const LISTING_STATUS_LABELS: Record<string, string> = {
+  active: 'Ativo',
+  paused: 'Pausado',
+  closed: 'Fechado',
+  under_review: 'Em revisão',
+  inactive: 'Inativo',
+  payment_required: 'Aguardando pagamento',
+};
+
+export function listingStatusLabel(status: string): string {
+  return LISTING_STATUS_LABELS[status.toLowerCase()] ?? status;
+}
+
 export function parseCost(raw: string): number | null {
   const normalized = raw.replace(',', '.');
   const value = Number(normalized);

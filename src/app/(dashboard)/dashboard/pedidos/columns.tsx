@@ -12,6 +12,21 @@ export interface ConferenceRow extends OrderItemWithListing {
   order: OrderWithRelations;
 }
 
+// SKU real do item, seguindo o app legado (mostra "—" quando não há SELLER_SKU
+// cadastrado). Ignora os fallbacks sintéticos usados como chave no sync:
+// listingsSync grava `item.id` como sku quando falta SELLER_SKU, e
+// ordersSync grava `id` ou `id-variação` — nenhum é um SKU de verdade.
+function displayOrderSku(row: ConferenceRow): string | null {
+  const externalId = row.product_listings?.external_id ?? null;
+  const listingSku = row.product_listings?.products?.sku ?? null;
+  if (listingSku && listingSku !== externalId) return listingSku;
+  const orderSku = row.sku ?? null;
+  if (!orderSku) return null;
+  if (externalId && (orderSku === externalId || orderSku.startsWith(`${externalId}-`))) return null;
+  if (/^MLB\d+(-\d+)?$/.test(orderSku)) return null;
+  return orderSku;
+}
+
 export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
   {
     id: 'foto',
@@ -47,8 +62,8 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceRow>[] = [
     id: 'sku',
     label: 'SKU',
     sortable: true,
-    sortValue: (row) => row.product_listings?.products?.sku ?? row.sku ?? null,
-    render: (row) => row.product_listings?.products?.sku ?? row.sku ?? '—',
+    sortValue: (row) => displayOrderSku(row),
+    render: (row) => displayOrderSku(row) ?? '—',
   },
   {
     id: 'comprador',

@@ -23,6 +23,23 @@ export async function syncAllListings(supabase: SupabaseClient): Promise<void> {
   }
 }
 
+// Normaliza a saúde/qualidade do anúncio para um score 0-100 (coluna
+// quality_score). O ML devolve `health` numérico 0..1 na maioria das contas; o
+// app legado também lidava com a forma categórica (healthy/warning/unhealthy),
+// então cobrimos as duas. Mantém o painel de qualidade (que antes ficava
+// sempre vazio) alimentado como no app legado.
+function healthToScore(health: number | string | null | undefined): number | null {
+  if (health === null || health === undefined || health === '') return null;
+  if (typeof health === 'number') {
+    if (!Number.isFinite(health)) return null;
+    return Math.round(Math.max(0, Math.min(1, health)) * 100);
+  }
+  const numeric = Number(health);
+  if (Number.isFinite(numeric)) return Math.round(Math.max(0, Math.min(1, numeric)) * 100);
+  const categorical: Record<string, number> = { healthy: 100, warning: 50, unhealthy: 10 };
+  return categorical[health.toLowerCase()] ?? null;
+}
+
 async function upsertListing(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
@@ -54,6 +71,8 @@ async function upsertListing(
       price: item.price,
       status: item.status,
       stock: item.available_quantity ?? null,
+      sold_quantity: item.sold_quantity ?? null,
+      quality_score: healthToScore(item.reputation_health_gauge ?? item.health),
       image_url: item.thumbnail ?? null,
       permalink: item.permalink ?? null,
     },

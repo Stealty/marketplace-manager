@@ -6,7 +6,8 @@ import { DataList, type DataListColumn } from '@/components/DataList';
 import { StatusTag } from '@/components/StatusTag';
 import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
-import { currency } from '@/lib/format';
+import { currency, listingStatusLabel } from '@/lib/format';
+import type { Tone } from '@/theme/tokens';
 import type { ProductListingWithRelations } from '@/services/listingsService';
 import { ListingDetailDrawer } from './listing-detail-drawer';
 
@@ -15,6 +16,25 @@ function qualityColor(score: number | null): 'success' | 'warning' | 'error' | '
   if (score >= 80) return 'success';
   if (score >= 50) return 'warning';
   return 'error';
+}
+
+// Mesmas cores do pill legado (top100.html): ativo verde, pausado amarelo,
+// fechado/demais neutros — antes qualquer status != 'active' virava 'warning',
+// tornando um anúncio fechado visualmente igual a um pausado.
+function statusTone(status: string): Tone {
+  const normalized = status.toLowerCase();
+  if (normalized === 'active') return 'success';
+  if (normalized === 'paused') return 'warning';
+  return 'neutral';
+}
+
+// Anúncios sem SELLER_SKU real usam o próprio id do ML como chave (listingsSync
+// `?? item.id`) — na exibição isso não é um SKU, então mostramos "—" como o
+// app legado, em vez de vazar o MLBxxxx na coluna SKU.
+function displayListingSku(row: ProductListingWithRelations): string | null {
+  const sku = row.products?.sku;
+  if (!sku || sku === row.external_id) return null;
+  return sku;
 }
 
 const columns: DataListColumn<ProductListingWithRelations>[] = [
@@ -34,8 +54,8 @@ const columns: DataListColumn<ProductListingWithRelations>[] = [
     id: 'sku',
     label: 'SKU',
     sortable: true,
-    sortValue: (row) => row.products?.sku ?? null,
-    render: (row) => row.products?.sku ?? '—',
+    sortValue: (row) => displayListingSku(row),
+    render: (row) => displayListingSku(row) ?? '—',
   },
   {
     id: 'loja',
@@ -53,11 +73,19 @@ const columns: DataListColumn<ProductListingWithRelations>[] = [
     render: (row) => (row.price !== null ? currency.format(row.price) : '—'),
   },
   {
+    id: 'vendidos',
+    label: 'Vendidos',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.sold_quantity,
+    render: (row) => (row.sold_quantity !== null ? row.sold_quantity.toLocaleString('pt-BR') : '—'),
+  },
+  {
     id: 'status',
     label: 'Status',
     sortable: true,
     sortValue: (row) => row.status,
-    render: (row) => (row.status ? <StatusTag label={row.status} tone={row.status === 'active' ? 'success' : 'warning'} /> : '—'),
+    render: (row) => (row.status ? <StatusTag label={listingStatusLabel(row.status)} tone={statusTone(row.status)} /> : '—'),
   },
   {
     id: 'quality_score',
@@ -117,6 +145,7 @@ export function ListingsList({ listings }: { listings: ProductListingWithRelatio
         getRowId={(row) => row.id}
         onRowClick={(row) => setSelectedId(row.id)}
         storageKey="anuncios"
+        defaultSort={{ columnId: 'vendidos', direction: 'desc' }}
         emptyMessage="Nenhum anúncio sincronizado ainda. Conecte um marketplace em Conexões para importar seu catálogo."
       />
 

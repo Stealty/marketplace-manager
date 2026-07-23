@@ -4,10 +4,36 @@ import * as React from "react";
 import { Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { DataList } from "@/components/DataList";
 import type { OrderWithRelations } from "@/services/ordersService";
+import { isAwaitingShipment } from "@/lib/mercadolivre/shippingReadiness";
 import { CONFERENCE_COLUMNS, type ConferenceRow } from "./columns";
 import { OrderDetailDrawer } from "./order-detail-drawer";
 
 type ConferidoFilter = "all" | "conferido" | "pendente";
+
+// "Situação" deriva do envio (não do order.status, que é quase sempre 'paid'):
+// espelha o recorte da conferência legada, onde o operador só via o que estava
+// aguardando envio. Mantém todos os pedidos na lista por padrão ("all").
+type SituacaoFilter = "all" | "aguardando_envio" | "enviados" | "cancelados";
+
+const SITUACAO_OPTIONS: { value: SituacaoFilter; label: string }[] = [
+  { value: "all", label: "Todas" },
+  { value: "aguardando_envio", label: "Aguardando envio" },
+  { value: "enviados", label: "Enviados" },
+  { value: "cancelados", label: "Cancelados" },
+];
+
+function matchesSituacao(order: OrderWithRelations, situacao: SituacaoFilter): boolean {
+  switch (situacao) {
+    case "aguardando_envio":
+      return isAwaitingShipment(order);
+    case "enviados":
+      return order.date_shipped !== null;
+    case "cancelados":
+      return order.status === "cancelled" || order.status === "invalid";
+    default:
+      return true;
+  }
+}
 
 const PAGE_BOTTOM_PADDING = 24;
 const MIN_TABLE_HEIGHT = 240;
@@ -19,6 +45,7 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
   const [loja, setLoja] = React.useState("all");
   const [conferidoFilter, setConferidoFilter] =
     React.useState<ConferidoFilter>("all");
+  const [situacao, setSituacao] = React.useState<SituacaoFilter>("all");
   const [sku, setSku] = React.useState("");
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
@@ -79,6 +106,8 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
           if (rowLoja !== loja) return false;
         }
 
+        if (!matchesSituacao(row.order, situacao)) return false;
+
         if (sku.trim()) {
           const skuValue = (
             row.product_listings?.products?.sku ??
@@ -99,7 +128,7 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
 
         return true;
       }),
-    [rows, loja, sku, dateFrom, dateTo],
+    [rows, loja, situacao, sku, dateFrom, dateTo],
   );
 
   const totalCount = rowsMatchingOtherFilters.length;
@@ -145,6 +174,23 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
             <MenuItem value="all">Todos</MenuItem>
             <MenuItem value="conferido">Conferidos</MenuItem>
             <MenuItem value="pendente">Não conferidos</MenuItem>
+          </TextField>
+
+          <TextField
+            select
+            label="Situação"
+            size="small"
+            value={situacao}
+            onChange={(event) =>
+              setSituacao(event.target.value as SituacaoFilter)
+            }
+            sx={{ minWidth: 180 }}
+          >
+            {SITUACAO_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
           </TextField>
 
           <TextField

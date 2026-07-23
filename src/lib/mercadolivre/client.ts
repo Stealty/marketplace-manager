@@ -371,11 +371,13 @@ export async function fetchShipment(
 // Confirmado em produção pelo app legado (ml-oauth): `/shipments/{id}/costs`
 // devolve a divisão real do frete entre comprador e vendedor —
 // `receiver.cost` é o que o comprador pagou, `senders[].cost` é o que cada
-// vendedor da remessa absorveu (casar por `senders[].id` com o seller_id da
-// conexão; em remessas de vendedor único, geralmente há um único sender).
+// vendedor da remessa absorveu. O app legado (produção) casa o sender pelo
+// campo `user_id` (server.js extractSellerFreightCost); `id` também aparece em
+// algumas respostas, então mantemos ambos para casar em qualquer schema. Em
+// remessas de vendedor único, geralmente há um único sender.
 export interface MercadoLivreShipmentCosts {
   receiver?: { cost?: number };
-  senders?: { id?: number; cost?: number }[];
+  senders?: { id?: number; user_id?: number; cost?: number }[];
 }
 
 export async function fetchShipmentCosts(
@@ -397,6 +399,13 @@ export interface MercadoLivreItem {
   price: number;
   status: string;
   available_quantity?: number;
+  // Unidades vendidas (ranking de mais vendidos) e saúde/qualidade do anúncio.
+  // `health` vem do multiget /items: numérico 0..1 na maioria das contas, mas
+  // o app legado também aceitava a forma categórica (healthy/warning/unhealthy)
+  // via `reputation_health_gauge` — tratamos as duas em listingsSync.
+  sold_quantity?: number;
+  health?: number | string | null;
+  reputation_health_gauge?: number | string | null;
   seller_custom_field?: string | null;
   attributes?: { id: string; value_name: string | null }[];
   thumbnail?: string;
@@ -482,7 +491,11 @@ export async function fetchItemsDetails(
 
 export function extractSellerSku(item: MercadoLivreItem): string | null {
   if (item.seller_custom_field) return item.seller_custom_field;
-  const skuAttribute = item.attributes?.find((attr) => attr.id === 'SELLER_SKU');
+  // App legado casa por SELLER_SKU ou SKU (server.js fetchItemsBulkQuality) —
+  // checar só SELLER_SKU perdia anúncios que cadastram o código em SKU.
+  const skuAttribute = item.attributes?.find(
+    (attr) => attr.id === 'SELLER_SKU' || attr.id === 'SKU'
+  );
   return skuAttribute?.value_name ?? null;
 }
 

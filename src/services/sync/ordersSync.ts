@@ -122,7 +122,13 @@ function extractSellerFreightCost(
 ): number | null {
   if (!costs) return null;
   const senders = costs.senders ?? [];
-  const matched = sellerId ? senders.find((sender) => String(sender.id) === sellerId) : undefined;
+  // Produção (server.js) casa por `user_id`; mantemos `id` como fallback caso o
+  // schema da resposta varie por tipo de envio. Antes casava só por `id`, o que
+  // fazia toda remessa cair no primeiro sender (custo errado em remessas
+  // multi-vendedor).
+  const matched = sellerId
+    ? senders.find((sender) => String(sender.user_id) === sellerId || String(sender.id) === sellerId)
+    : undefined;
   return matched?.cost ?? senders[0]?.cost ?? 0;
 }
 

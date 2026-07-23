@@ -127,6 +127,7 @@ export interface ProductListing {
   price: number | null;
   status: string | null;
   quality_score: number | null;
+  sold_quantity: number | null;
   stock: number | null;
   image_url: string | null;
   permalink: string | null;
