@@ -3,6 +3,9 @@ import {
   fetchOrders,
   fetchShipment,
   fetchShipmentCosts,
+  fetchItemsDetails,
+  resolveOrderItemImage,
+  type MercadoLivreItem,
   type MercadoLivreOrder,
   type MercadoLivreShipment,
   type MercadoLivreShipmentCosts,
@@ -97,6 +100,26 @@ async function fetchListingIdsByExternalId(
   return new Map((data ?? []).map((listing) => [listing.external_id as string, listing.id as string]));
 }
 
+// Busca os detalhes (multiget /items) de todo item vendido no lote de pedidos,
+// chaveado por item.id. Usado para resolver a foto de cada item — inclusive a
+// da variação vendida — direto no order_item, sem depender de o anúncio ainda
+// existir em product_listings (anúncios encerrados/pausados/apagados não
+// aparecem no /users/{seller}/items/search do listingsSync, então antes esses
+// itens ficavam sem foto). Espelha o fetchItemsBulk do app legado (server.js).
+async function fetchItemsByExternalId(
+  supabase: SupabaseClient,
+  connection: MarketplaceConnection,
+  orders: MercadoLivreOrder[]
+): Promise<Map<string, MercadoLivreItem>> {
+  const externalIds = Array.from(
+    new Set(orders.flatMap((o) => o.order_items.map((item) => item.item.id)))
+  );
+  if (externalIds.length === 0) return new Map();
+
+  const items = await fetchItemsDetails(supabase, connection, externalIds);
+  return new Map(items.map((item) => [item.id, item]));
+}
+
 // Identifica a linha do pedido de forma única mesmo quando o anúncio tem
 // variações: `item.id` é o mesmo para todas as variações de um anúncio, então
 // duas variações diferentes vendidas no mesmo pedido colidiriam no
@@ -138,7 +161,8 @@ async function upsertOrder(
   mlOrder: MercadoLivreOrder,
   shipments: Map<number, MercadoLivreShipment>,
   shipmentCosts: Map<number, MercadoLivreShipmentCosts>,
-  listingIdByExternalId: Map<string, string>
+  listingIdByExternalId: Map<string, string>,
+  itemByExternalId: Map<string, MercadoLivreItem>
 ) {
   const shipment = mlOrder.shipping?.id ? shipments.get(mlOrder.shipping.id) : undefined;
   const costs = mlOrder.shipping?.id ? shipmentCosts.get(mlOrder.shipping.id) : undefined;
@@ -202,6 +226,7 @@ async function upsertOrder(
         title: item.item.title,
         quantity: item.quantity,
         unit_price: item.unit_price,
+        image_url: resolveOrderItemImage(itemByExternalId.get(item.item.id), item.item.variation_id),
         sale_fee: item.sale_fee ?? null,
       })),
       { onConflict: 'order_id,sku' }
@@ -222,8 +247,17 @@ export async function syncOrders(
       orders
     );
     const listingIdByExternalId = await fetchListingIdsByExternalId(supabase, connection, orders);
+    const itemByExternalId = await fetchItemsByExternalId(supabase, connection, orders);
     for (const mlOrder of orders) {
-      await upsertOrder(supabase, connection, mlOrder, shipments, shipmentCosts, listingIdByExternalId);
+      await upsertOrder(
+        supabase,
+        connection,
+        mlOrder,
+        shipments,
+        shipmentCosts,
+        listingIdByExternalId,
+        itemByExternalId
+      );
     }
 
     const failureMessages: string[] = [];

@@ -408,8 +408,29 @@ export interface MercadoLivreItem {
   reputation_health_gauge?: number | string | null;
   seller_custom_field?: string | null;
   attributes?: { id: string; value_name: string | null }[];
+  // Imagem do anúncio: `thumbnail` vem em http:// na maioria das contas (a URL
+  // bloqueada como mixed content em páginas https), `secure_thumbnail` já vem
+  // em https. `pictures` é o fallback quando nenhum thumbnail vem preenchido.
+  // O app legado (server.js fetchItemsBulk) monta a imagem com essa cadeia de
+  // prioridade + forceHttps — ver extractItemThumbnail abaixo.
   thumbnail?: string;
+  secure_thumbnail?: string;
+  pictures?: MercadoLivrePicture[];
+  // Só presente em anúncios com variação (tamanho/cor). Cada variação pode ter
+  // foto própria (picture_ids/pictures) — ver extractVariationThumbnail.
+  variations?: MercadoLivreVariation[];
   permalink?: string;
+}
+
+interface MercadoLivrePicture {
+  url?: string;
+  secure_url?: string;
+}
+
+interface MercadoLivreVariation {
+  id: number;
+  picture_ids?: string[];
+  pictures?: MercadoLivrePicture[];
 }
 
 // A API do ML limita `offset` a 1000 registros em /items/search e
@@ -497,6 +518,73 @@ export function extractSellerSku(item: MercadoLivreItem): string | null {
     (attr) => attr.id === 'SELLER_SKU' || attr.id === 'SKU'
   );
   return skuAttribute?.value_name ?? null;
+}
+
+// URLs de imagem do ML costumam vir em http:// (campo `thumbnail`,
+// `pictures[].url`) — numa página servida em https o navegador bloqueia
+// `<img src="http://...">` como mixed content e a foto some. O app legado
+// (server.js forceHttps) normaliza toda URL para https antes de exibir.
+export function forceHttps(url: string | null | undefined): string {
+  if (!url) return '';
+  return String(url).replace(/^http:\/\//i, 'https://');
+}
+
+// Reconstrói a URL de uma imagem a partir do id de picture do ML, no mesmo
+// formato do app legado (server.js buildMlPictureUrl). Usado para fotos de
+// variação, que às vezes só trazem `picture_ids` (sem URL pronta). Tamanho
+// "O" = original.
+function buildMlPictureUrl(pictureId: string | null | undefined, size = 'O'): string {
+  const id = String(pictureId ?? '').trim();
+  if (!id) return '';
+  return `https://http2.mlstatic.com/D_${id}-${size}.jpg`;
+}
+
+// Foto principal do anúncio, com a mesma cadeia de prioridade do app legado
+// (secure_thumbnail > thumbnail > pictures[0].secure_url > pictures[0].url),
+// sempre forçada para https.
+export function extractItemThumbnail(item: MercadoLivreItem): string {
+  return forceHttps(
+    item.secure_thumbnail ||
+      item.thumbnail ||
+      item.pictures?.[0]?.secure_url ||
+      item.pictures?.[0]?.url ||
+      ''
+  );
+}
+
+function findVariationById(item: MercadoLivreItem, variationId: number | null | undefined) {
+  if (variationId === null || variationId === undefined) return null;
+  const vid = String(variationId);
+  return item.variations?.find((v) => String(v.id) === vid) ?? null;
+}
+
+// Foto específica da variação vendida (tamanho/cor), quando o anúncio tem
+// variação — segue a prioridade do app legado (server.js
+// extractVariationThumbnail): picture_ids[0] > pictures[0].secure_url >
+// pictures[0].url. Sem foto de variação, devolve '' e o chamador cai na foto
+// principal do anúncio.
+function extractVariationThumbnail(
+  item: MercadoLivreItem,
+  variationId: number | null | undefined
+): string {
+  const variation = findVariationById(item, variationId);
+  if (!variation) return '';
+  if (variation.picture_ids?.length) return buildMlPictureUrl(variation.picture_ids[0]);
+  if (variation.pictures?.[0]?.secure_url) return forceHttps(variation.pictures[0].secure_url);
+  if (variation.pictures?.[0]?.url) return forceHttps(variation.pictures[0].url);
+  return '';
+}
+
+// Imagem a ser gravada em order_items.image_url: prioriza a foto da variação
+// vendida e cai na foto principal do anúncio. Retorna null quando o item não
+// foi encontrado no multiget /items ou não tem nenhuma imagem.
+export function resolveOrderItemImage(
+  item: MercadoLivreItem | undefined,
+  variationId: number | null | undefined
+): string | null {
+  if (!item) return null;
+  const image = extractVariationThumbnail(item, variationId) || extractItemThumbnail(item);
+  return image || null;
 }
 
 // NOTE: filtro/paginação de /questions/search conferidos com conhecimento

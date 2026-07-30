@@ -97,6 +97,7 @@ export interface OrderItem {
   title: string | null;
   quantity: number;
   unit_price: number | null;
+  image_url: string | null;
   conferido: boolean;
   sale_fee: number | null;
   net_received_precise: number | null;

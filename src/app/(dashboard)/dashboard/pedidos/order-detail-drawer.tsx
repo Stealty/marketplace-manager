@@ -18,8 +18,13 @@ export function OrderDetailDrawer({
 }) {
   if (!order) return null;
 
+  // Foto gravada direto no item (ordersSync) tem prioridade; o join em
+  // product_listings continua como fallback para pedidos ainda não
+  // ressincronizados após a coluna order_items.image_url passar a existir.
   const mainImage =
-    order.order_items.find((item) => item.product_listings?.image_url)?.product_listings?.image_url ?? null;
+    order.order_items
+      .map((item) => item.image_url ?? item.product_listings?.image_url ?? null)
+      .find((url) => url) ?? null;
 
   return (
     <DetailDrawer

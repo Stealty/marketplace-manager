@@ -97,7 +97,7 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceGroup>[] = [
         </Box>
       ) : (
         <ProductThumbnail
-          imageUrl={group.items[0]?.product_listings?.image_url}
+          imageUrl={group.items[0]?.image_url ?? group.items[0]?.product_listings?.image_url}
           alt={group.items[0]?.title ?? 'Produto'}
           size={56}
           iconFontSize="small"

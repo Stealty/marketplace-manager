@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  extractItemThumbnail,
   extractSellerSku,
   fetchItemIds,
   fetchItemsDetails,
@@ -73,7 +74,7 @@ async function upsertListing(
       stock: item.available_quantity ?? null,
       sold_quantity: item.sold_quantity ?? null,
       quality_score: healthToScore(item.reputation_health_gauge ?? item.health),
-      image_url: item.thumbnail ?? null,
+      image_url: extractItemThumbnail(item) || null,
       permalink: item.permalink ?? null,
     },
     { onConflict: 'marketplace_connection_id,external_id' }
