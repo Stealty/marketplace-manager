@@ -3,11 +3,20 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // rotas de webhook são chamadas servidor-a-servidor pelo marketplace, e
 // /auth/confirm é onde um link de convite/recuperação de senha estabelece a
-// sessão — ambas ainda não têm cookie de sessão quando a requisição chega
-// aqui, então precisam ficar fora do gate de autenticação.
-const PUBLIC_PATHS = ['/login', '/auth/confirm', '/api/integrations/mercado-livre/webhook'];
+// sessão — ambas nunca têm cookie de sessão, então nem vale chamar o
+// Supabase: pula o gate de autenticação completamente (evita gastar uma
+// chamada de auth a cada request nessas rotas, incluindo tráfego de bot).
+const SKIP_AUTH_PATHS = ['/auth/confirm', '/api/integrations/mercado-livre/webhook'];
+
+// /login também é público, mas precisa saber se já existe usuário logado
+// (para redirecionar pro dashboard), então passa pelo gate normalmente.
+const PUBLIC_PATHS = ['/login', ...SKIP_AUTH_PATHS];
 
 export async function updateSession(request: NextRequest) {
+  if (SKIP_AUTH_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

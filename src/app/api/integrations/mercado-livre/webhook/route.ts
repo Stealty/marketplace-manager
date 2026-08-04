@@ -26,6 +26,15 @@ interface MercadoLivreNotification {
 }
 
 export async function POST(request: NextRequest) {
+  // A URL cadastrada no painel de developers do ML deve incluir
+  // `?key=<MERCADO_LIVRE_WEBHOOK_SECRET>` — sem isso, qualquer bot/scanner
+  // que descubra essa rota consegue disparar trabalho (e consumir Edge
+  // Requests do Vercel) só de bater aqui.
+  const secret = process.env.MERCADO_LIVRE_WEBHOOK_SECRET;
+  if (!secret || request.nextUrl.searchParams.get('key') !== secret) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
   const body: MercadoLivreNotification | null = await request.json().catch(() => null);
 
   if (body?.topic && body.user_id !== undefined) {
