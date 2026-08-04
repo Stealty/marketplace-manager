@@ -5,6 +5,7 @@ import { StatusTag } from '@/components/StatusTag';
 import type { Tone } from '@/theme/tokens';
 import type { ItemProfitability } from '@/lib/profitability';
 import { currency, dateTimeFormatter } from '@/lib/format';
+import { orderStatusTone, translateOrderStatus } from '@/lib/orderStatus';
 import type { OrderItemWithListing, OrderWithRelations } from '@/services/ordersService';
 import { CostInput } from './cost-input';
 
@@ -90,6 +91,8 @@ export const PROFITABILITY_COLUMNS: DataListColumn<ProfitabilityRow>[] = [
     id: 'frete',
     label: 'Frete (vendedor)',
     align: 'right',
+    // App legado não mostra o frete como coluna própria, só embutido no repasse.
+    defaultHidden: true,
     render: (row) =>
       row.freightCostKnown ? (
         currency.format(row.freightCost)
@@ -126,7 +129,9 @@ export const PROFITABILITY_COLUMNS: DataListColumn<ProfitabilityRow>[] = [
                 </span>
               </Tooltip>
             )}
-            {row.order.status && <StatusTag label={row.order.status} tone="neutral" />}
+            {row.order.status && (
+              <StatusTag label={translateOrderStatus(row.order.status)} tone={orderStatusTone(row.order.status)} />
+            )}
           </Stack>
         </Stack>
       );

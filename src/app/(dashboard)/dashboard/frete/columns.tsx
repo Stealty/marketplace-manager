@@ -43,6 +43,8 @@ export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
     label: 'Frete (vendedor)',
     align: 'right',
     sortable: true,
+    // App legado nunca mostrou o custo absorvido pelo vendedor, só o do comprador.
+    defaultHidden: true,
     sortValue: (row) => row.freight_cost_seller,
     render: (row) => (row.freight_cost_seller !== null ? currency.format(row.freight_cost_seller) : '—'),
   },
@@ -59,6 +61,8 @@ export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
     label: '% (vendedor)',
     align: 'right',
     sortable: true,
+    // App legado calculava o % sobre o frete do comprador, não do vendedor.
+    defaultHidden: true,
     sortValue: (row) => sellerFreightRatio(row),
     render: (row) => {
       const ratio = sellerFreightRatio(row);
@@ -69,6 +73,8 @@ export const FREIGHT_LIST_COLUMNS: DataListColumn<OrderWithRelations>[] = [
     id: 'is_free_shipping',
     label: 'Frete grátis',
     sortable: true,
+    // App legado excluía pedidos com frete grátis da tela em vez de marcá-los.
+    defaultHidden: true,
     sortValue: (row) => (row.is_free_shipping ? 1 : 0),
     render: (row) => (row.is_free_shipping ? <StatusTag label="Frete grátis" tone="accent" /> : '—'),
   },

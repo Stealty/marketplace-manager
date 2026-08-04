@@ -160,6 +160,8 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceGroup>[] = [
     id: 'status',
     label: 'Status',
     sortable: true,
+    // App legado nunca mostrou status como coluna (a tela só listava ready_to_ship).
+    defaultHidden: true,
     sortValue: (group) => group.primaryOrder.status,
     render: (group) =>
       group.primaryOrder.status ? (
@@ -176,6 +178,8 @@ export const CONFERENCE_COLUMNS: DataListColumn<ConferenceGroup>[] = [
     label: 'Valor',
     align: 'right',
     sortable: true,
+    // App legado nunca mostrou valor/preço na tela de conferência.
+    defaultHidden: true,
     sortValue: (group) => group.orders.reduce((sum, order) => sum + (order.order_value ?? 0), 0),
     render: (group) => {
       const total = group.orders.reduce((sum, order) => sum + (order.order_value ?? 0), 0);

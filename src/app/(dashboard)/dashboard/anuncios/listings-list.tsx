@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { LinearProgress, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { DataList, type DataListColumn } from '@/components/DataList';
+import { ProductThumbnail } from '@/components/ProductThumbnail';
 import { StatusTag } from '@/components/StatusTag';
 import { StoreTag, storeSortValue } from '@/components/StoreTag';
 import { MARKETPLACE_LABELS } from '@/lib/marketplace';
@@ -39,6 +40,15 @@ function displayListingSku(row: ProductListingWithRelations): string | null {
 
 const columns: DataListColumn<ProductListingWithRelations>[] = [
   {
+    id: 'foto',
+    label: 'Foto',
+    width: 56,
+    hideable: false,
+    render: (row) => (
+      <ProductThumbnail imageUrl={row.image_url} alt={row.title ?? 'Produto'} size={56} iconFontSize="small" />
+    ),
+  },
+  {
     id: 'title',
     label: 'Título',
     sortable: true,
@@ -69,6 +79,8 @@ const columns: DataListColumn<ProductListingWithRelations>[] = [
     label: 'Preço',
     align: 'right',
     sortable: true,
+    // App legado (top100/pior-qualidade) nunca mostrou preço, só foto, status, vendidos, SKU, qualidade e visitas.
+    defaultHidden: true,
     sortValue: (row) => row.price,
     render: (row) => (row.price !== null ? currency.format(row.price) : '—'),
   },

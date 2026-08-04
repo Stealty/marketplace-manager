@@ -268,6 +268,7 @@ export function OrdersList({ orders }: { orders: OrderWithRelations[] }) {
         onRowClick={(group) => setSelectedOrderId(group.primaryOrder.id)}
         maxHeight={tableMaxHeight}
         storageKey="pedidos"
+        enableCardView
         renderRowTitle={(group) => (
           <Typography variant="body2" fontWeight={600} noWrap>
             {group.isPack
