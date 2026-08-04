@@ -5,7 +5,7 @@ import { RefreshButton } from '@/components/RefreshButton';
 import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { ProfitabilityList } from './profitability-list';
 import { QuickCostForm } from './quick-cost-form';
-import { getProfitabilityData, refreshProfitability } from './actions';
+import { getProfitabilityData, refreshProfitability, checkProfitabilityRefreshDone } from './actions';
 
 export default async function LucratividadePage() {
   const { orders, lastSuccessAt } = await getProfitabilityData();
@@ -19,7 +19,7 @@ export default async function LucratividadePage() {
         action={
           <Stack direction="row" spacing={1.5} alignItems="center">
             <LastSyncedInfo lastSuccessAt={lastSuccessAt} />
-            <RefreshButton action={refreshProfitability} />
+            <RefreshButton action={refreshProfitability} checkDone={checkProfitabilityRefreshDone} />
           </Stack>
         }
       />

@@ -5,7 +5,7 @@ import { RefreshButton } from '@/components/RefreshButton';
 import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { getProductListings, getListingsLastSyncedAt } from '@/services/listingsService';
 import { ListingsList } from './listings-list';
-import { refreshListings } from './actions';
+import { refreshListings, checkListingsRefreshDone } from './actions';
 
 export default async function AnunciosPage() {
   const [listings, lastSuccessAt] = await Promise.all([getProductListings(), getListingsLastSyncedAt()]);
@@ -19,7 +19,7 @@ export default async function AnunciosPage() {
         action={
           <Stack direction="row" spacing={1.5} alignItems="center">
             <LastSyncedInfo lastSuccessAt={lastSuccessAt} />
-            <RefreshButton action={refreshListings} />
+            <RefreshButton action={refreshListings} checkDone={checkListingsRefreshDone} />
           </Stack>
         }
       />

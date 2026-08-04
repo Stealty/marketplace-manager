@@ -1,11 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import { createClient } from '@/lib/supabase/server';
 import { syncAllOrders } from '@/services/sync/ordersSync';
 import { syncAllListings } from '@/services/sync/listingsSync';
 import { syncAllConnectionProfiles } from '@/services/sync/connectionProfileSync';
+import { isSyncedSince } from '@/lib/sync/freshness';
+import { getMarketplaceConnections } from '@/services/connectionsService';
 import { getOrders, getOrdersLastSyncedAt, type OrderWithRelations } from '@/services/ordersService';
 import { getCurrentUserOrganizations } from '@/services/organizationService';
 import { saveProductCost } from '@/services/productCostsService';
@@ -27,20 +30,31 @@ export async function getProfitabilityData(): Promise<ProfitabilityData> {
   return { orders, lastSuccessAt };
 }
 
-export async function refreshProfitability(): Promise<{ error?: string }> {
+// A sincronização roda em background (after()) em vez de bloquear a
+// resposta — ver o mesmo comentário em pedidos/actions.ts.
+export async function refreshProfitability(): Promise<{ error?: string; startedAt?: string }> {
   const supabase = await createClient();
-  try {
-    // listings antes de orders: orders resolve product_listing_id (usado
-    // para achar o custo do produto em products.unit_cost) via lookup
-    // pontual em product_listings no momento do sync.
-    await syncAllListings(supabase);
-    await syncAllOrders(supabase);
-    await syncAllConnectionProfiles(supabase);
-  } catch (error) {
-    return toFriendlySyncError(error);
-  }
-  revalidatePath('/dashboard/lucratividade');
-  return {};
+  const startedAt = new Date().toISOString();
+  after(async () => {
+    try {
+      // listings antes de orders: orders resolve product_listing_id (usado
+      // para achar o custo do produto em products.unit_cost) via lookup
+      // pontual em product_listings no momento do sync.
+      await syncAllListings(supabase);
+      await syncAllOrders(supabase);
+      await syncAllConnectionProfiles(supabase);
+    } catch (error) {
+      console.error('[refreshProfitability] sincronização em background falhou', error);
+    }
+    revalidatePath('/dashboard/lucratividade');
+  });
+  return { startedAt };
+}
+
+export async function checkProfitabilityRefreshDone(startedAt: string): Promise<boolean> {
+  const supabase = await createClient();
+  const connections = await getMarketplaceConnections();
+  return isSyncedSince(supabase, connections, ['listings', 'orders', 'profile'], startedAt);
 }
 
 export async function getPreciseProfitability(

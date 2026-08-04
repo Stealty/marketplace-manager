@@ -1,11 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import { syncAllOrders } from '@/services/sync/ordersSync';
 import { syncAllListings } from '@/services/sync/listingsSync';
 import { syncAllConnectionProfiles } from '@/services/sync/connectionProfileSync';
+import { isSyncedSince } from '@/lib/sync/freshness';
+import { getMarketplaceConnections } from '@/services/connectionsService';
 import { getOrders, getOrdersLastSyncedAt, type OrderWithRelations } from '@/services/ordersService';
 
 export interface OrdersData {
@@ -18,19 +20,33 @@ export async function getOrdersData(): Promise<OrdersData> {
   return { orders, lastSuccessAt };
 }
 
-export async function refreshOrders(): Promise<{ error?: string }> {
+// A sincronização roda em background (after()) em vez de bloquear a
+// resposta: com muitos anúncios/pedidos, sincronizar tudo antes de responder
+// passava do tempo máximo da function no Vercel e o gateway devolvia 504.
+// O botão (RefreshButton) faz polling em sync_state via checkOrdersRefreshDone
+// até a rodada iniciada em `startedAt` terminar.
+export async function refreshOrders(): Promise<{ error?: string; startedAt?: string }> {
   const supabase = await createClient();
-  try {
-    // listings antes de orders: orders resolve product_listing_id (foto do
-    // produto) via lookup pontual em product_listings no momento do sync.
-    await syncAllListings(supabase);
-    await syncAllOrders(supabase);
-    await syncAllConnectionProfiles(supabase);
-  } catch (error) {
-    return toFriendlySyncError(error);
-  }
-  revalidatePath('/dashboard/pedidos');
-  return {};
+  const startedAt = new Date().toISOString();
+  after(async () => {
+    try {
+      // listings antes de orders: orders resolve product_listing_id (foto do
+      // produto) via lookup pontual em product_listings no momento do sync.
+      await syncAllListings(supabase);
+      await syncAllOrders(supabase);
+      await syncAllConnectionProfiles(supabase);
+    } catch (error) {
+      console.error('[refreshOrders] sincronização em background falhou', error);
+    }
+    revalidatePath('/dashboard/pedidos');
+  });
+  return { startedAt };
+}
+
+export async function checkOrdersRefreshDone(startedAt: string): Promise<boolean> {
+  const supabase = await createClient();
+  const connections = await getMarketplaceConnections();
+  return isSyncedSince(supabase, connections, ['listings', 'orders', 'profile'], startedAt);
 }
 
 // Conferência é por PACOTE (padrão do app legado: um "conferido" cobre a compra

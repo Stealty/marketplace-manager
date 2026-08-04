@@ -10,7 +10,7 @@ import {
   type MercadoLivreShipment,
   type MercadoLivreShipmentCosts,
 } from '@/lib/mercadolivre/client';
-import { mapWithConcurrency } from '@/lib/concurrency';
+import { mapWithConcurrency, chunk } from '@/lib/concurrency';
 import { upsertSyncState } from '@/lib/sync/freshness';
 import type { MarketplaceConnection } from '@/types/database';
 
@@ -155,83 +155,118 @@ function extractSellerFreightCost(
   return matched?.cost ?? senders[0]?.cost ?? 0;
 }
 
-async function upsertOrder(
+// Teto de linhas por upsert/select/delete em lote — protege contra estourar
+// limite de payload/parâmetros do Postgres em contas com volume grande de
+// pedidos.
+const UPSERT_CHUNK_SIZE = 500;
+
+// Grava todo o lote de pedidos em poucas chamadas (antes: upsert do pedido +
+// select + delete condicional + upsert dos itens, um pedido por vez em loop
+// sequencial — inviável para contas com muitos pedidos, chegava a travar a
+// function do Vercel).
+async function upsertOrders(
   supabase: SupabaseClient,
   connection: MarketplaceConnection,
-  mlOrder: MercadoLivreOrder,
+  orders: MercadoLivreOrder[],
   shipments: Map<number, MercadoLivreShipment>,
   shipmentCosts: Map<number, MercadoLivreShipmentCosts>,
   listingIdByExternalId: Map<string, string>,
   itemByExternalId: Map<string, MercadoLivreItem>
 ) {
-  const shipment = mlOrder.shipping?.id ? shipments.get(mlOrder.shipping.id) : undefined;
-  const costs = mlOrder.shipping?.id ? shipmentCosts.get(mlOrder.shipping.id) : undefined;
-  // `cost`: quanto o comprador paga pelo frete (0 = frete grátis pro
-  // comprador) — segue sendo a base do indicador is_free_shipping.
-  const freightValue = shipment?.shipping_option?.cost ?? null;
-  const freightCostSeller = extractSellerFreightCost(costs, connection.external_account_id);
+  if (orders.length === 0) return;
 
-  const { data: order, error } = await supabase
-    .from('orders')
-    .upsert(
-      {
-        org_id: connection.org_id,
-        marketplace_connection_id: connection.id,
-        external_order_id: String(mlOrder.id),
-        status: mlOrder.status,
-        order_value: mlOrder.total_amount,
-        freight_value: freightValue,
-        freight_cost_seller: freightCostSeller,
-        is_free_shipping: freightValue === 0,
-        ordered_at: mlOrder.date_created,
-        buyer_nickname: mlOrder.buyer?.nickname ?? null,
-        pack_id: mlOrder.pack_id ? String(mlOrder.pack_id) : null,
-        shipment_id: mlOrder.shipping?.id ?? null,
-        shipping_status: shipment?.status ?? null,
-        shipping_substatus: shipment?.substatus ?? null,
-        logistic_type: shipment?.logistic_type ?? null,
-        date_shipped: shipment?.date_shipped ?? null,
-        label_printed_at: shipment?.date_first_printed ?? null,
-        payments: mlOrder.payments ?? null,
-      },
-      { onConflict: 'marketplace_connection_id,external_order_id' }
-    )
-    .select('id')
-    .single();
+  const orderRows = orders.map((mlOrder) => {
+    const shipment = mlOrder.shipping?.id ? shipments.get(mlOrder.shipping.id) : undefined;
+    const costs = mlOrder.shipping?.id ? shipmentCosts.get(mlOrder.shipping.id) : undefined;
+    // `cost`: quanto o comprador paga pelo frete (0 = frete grátis pro
+    // comprador) — segue sendo a base do indicador is_free_shipping.
+    const freightValue = shipment?.shipping_option?.cost ?? null;
+    const freightCostSeller = extractSellerFreightCost(costs, connection.external_account_id);
+    return {
+      org_id: connection.org_id,
+      marketplace_connection_id: connection.id,
+      external_order_id: String(mlOrder.id),
+      status: mlOrder.status,
+      order_value: mlOrder.total_amount,
+      freight_value: freightValue,
+      freight_cost_seller: freightCostSeller,
+      is_free_shipping: freightValue === 0,
+      ordered_at: mlOrder.date_created,
+      buyer_nickname: mlOrder.buyer?.nickname ?? null,
+      pack_id: mlOrder.pack_id ? String(mlOrder.pack_id) : null,
+      shipment_id: mlOrder.shipping?.id ?? null,
+      shipping_status: shipment?.status ?? null,
+      shipping_substatus: shipment?.substatus ?? null,
+      logistic_type: shipment?.logistic_type ?? null,
+      date_shipped: shipment?.date_shipped ?? null,
+      label_printed_at: shipment?.date_first_printed ?? null,
+      payments: mlOrder.payments ?? null,
+    };
+  });
 
-  if (error) throw error;
+  const orderIdByExternalId = new Map<string, string>();
+  for (const rows of chunk(orderRows, UPSERT_CHUNK_SIZE)) {
+    const { data, error } = await supabase
+      .from('orders')
+      .upsert(rows, { onConflict: 'marketplace_connection_id,external_order_id' })
+      .select('id, external_order_id');
+    if (error) throw error;
+    for (const row of data ?? []) orderIdByExternalId.set(row.external_order_id as string, row.id as string);
+  }
+
+  const allOrderIds = Array.from(orderIdByExternalId.values());
 
   // Remove apenas os itens que saíram do pedido no ML — itens que continuam
   // são upsertados por (order_id, sku) para preservar o campo `conferido`
   // (delete+insert resetava a conferência a cada ressincronização).
-  const currentSkus = mlOrder.order_items.map((item) => extractOrderItemSku(item.item));
-  const { data: existingItems } = await supabase
-    .from('order_items')
-    .select('sku')
-    .eq('order_id', order.id);
-  const staleSkus = (existingItems ?? [])
-    .map((item) => item.sku as string | null)
-    .filter((sku): sku is string => sku !== null && !currentSkus.includes(sku));
-  if (staleSkus.length > 0) {
-    await supabase.from('order_items').delete().eq('order_id', order.id).in('sku', staleSkus);
+  const existingItemsByOrderId = new Map<string, { id: string; sku: string | null }[]>();
+  for (const idBatch of chunk(allOrderIds, UPSERT_CHUNK_SIZE)) {
+    const { data: existingItems, error } = await supabase
+      .from('order_items')
+      .select('id, order_id, sku')
+      .in('order_id', idBatch);
+    if (error) throw error;
+    for (const item of existingItems ?? []) {
+      const orderId = item.order_id as string;
+      const list = existingItemsByOrderId.get(orderId) ?? [];
+      list.push({ id: item.id as string, sku: item.sku as string | null });
+      existingItemsByOrderId.set(orderId, list);
+    }
   }
 
-  if (mlOrder.order_items.length > 0) {
-    const { error: itemsError } = await supabase.from('order_items').upsert(
-      mlOrder.order_items.map((item) => ({
-        org_id: connection.org_id,
-        order_id: order.id,
-        product_listing_id: listingIdByExternalId.get(item.item.id) ?? null,
-        sku: extractOrderItemSku(item.item),
-        title: item.item.title,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        image_url: resolveOrderItemImage(itemByExternalId.get(item.item.id), item.item.variation_id),
-        sale_fee: item.sale_fee ?? null,
-      })),
-      { onConflict: 'order_id,sku' }
-    );
-    if (itemsError) throw itemsError;
+  const staleItemIds: string[] = [];
+  for (const mlOrder of orders) {
+    const orderId = orderIdByExternalId.get(String(mlOrder.id));
+    if (!orderId) continue;
+    const currentSkus = mlOrder.order_items.map((item) => extractOrderItemSku(item.item));
+    for (const existing of existingItemsByOrderId.get(orderId) ?? []) {
+      if (existing.sku !== null && !currentSkus.includes(existing.sku)) staleItemIds.push(existing.id);
+    }
+  }
+  for (const idBatch of chunk(staleItemIds, UPSERT_CHUNK_SIZE)) {
+    const { error } = await supabase.from('order_items').delete().in('id', idBatch);
+    if (error) throw error;
+  }
+
+  const itemRows = orders.flatMap((mlOrder) => {
+    const orderId = orderIdByExternalId.get(String(mlOrder.id));
+    if (!orderId) return [];
+    return mlOrder.order_items.map((item) => ({
+      org_id: connection.org_id,
+      order_id: orderId,
+      product_listing_id: listingIdByExternalId.get(item.item.id) ?? null,
+      sku: extractOrderItemSku(item.item),
+      title: item.item.title,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      image_url: resolveOrderItemImage(itemByExternalId.get(item.item.id), item.item.variation_id),
+      sale_fee: item.sale_fee ?? null,
+    }));
+  });
+
+  for (const rows of chunk(itemRows, UPSERT_CHUNK_SIZE)) {
+    const { error } = await supabase.from('order_items').upsert(rows, { onConflict: 'order_id,sku' });
+    if (error) throw error;
   }
 }
 
@@ -248,17 +283,15 @@ export async function syncOrders(
     );
     const listingIdByExternalId = await fetchListingIdsByExternalId(supabase, connection, orders);
     const itemByExternalId = await fetchItemsByExternalId(supabase, connection, orders);
-    for (const mlOrder of orders) {
-      await upsertOrder(
-        supabase,
-        connection,
-        mlOrder,
-        shipments,
-        shipmentCosts,
-        listingIdByExternalId,
-        itemByExternalId
-      );
-    }
+    await upsertOrders(
+      supabase,
+      connection,
+      orders,
+      shipments,
+      shipmentCosts,
+      listingIdByExternalId,
+      itemByExternalId
+    );
 
     const failureMessages: string[] = [];
     if (failedShipmentIds.length > 0) {

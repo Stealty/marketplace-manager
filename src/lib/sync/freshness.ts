@@ -101,6 +101,46 @@ export async function getLastSuccessAt(
   return (timestamps as string[]).reduce((oldest, t) => (new Date(t) < new Date(oldest) ? t : oldest));
 }
 
+// Usado pelo botão "Atualizar" das telas para saber quando a sincronização
+// disparada em background (via `after()`, ver actions.ts de cada tela) já
+// terminou: cada syncX grava `sync_state` uma única vez ao final da tentativa
+// (sucesso ou erro, ver upsertSyncState acima), então basta conferir se o
+// timestamp avançou para depois do momento em que o sync foi disparado.
+// `true` também quando não há nenhuma conexão ML conectada — não há nada
+// para esperar.
+export async function isSyncedSince(
+  supabase: SupabaseClient,
+  connections: MarketplaceConnection[],
+  resources: SyncResource[],
+  sinceIso: string
+): Promise<boolean> {
+  const mlConnections = connections.filter(
+    (c) => c.marketplace === 'mercado_livre' && c.status === 'connected'
+  );
+  if (mlConnections.length === 0) return true;
+
+  const { data: syncStates } = await supabase
+    .from('sync_state')
+    .select('marketplace_connection_id, resource, last_synced_at')
+    .in('resource', resources)
+    .in(
+      'marketplace_connection_id',
+      mlConnections.map((c) => c.id)
+    );
+
+  const lastSyncedAtByKey = new Map<string, string | null>(
+    (syncStates ?? []).map((s) => [`${s.marketplace_connection_id}:${s.resource}`, s.last_synced_at])
+  );
+
+  const since = new Date(sinceIso).getTime();
+  return mlConnections.every((connection) =>
+    resources.every((resource) => {
+      const lastSyncedAt = lastSyncedAtByKey.get(`${connection.id}:${resource}`);
+      return Boolean(lastSyncedAt) && new Date(lastSyncedAt as string).getTime() >= since;
+    })
+  );
+}
+
 // Cache-aside: a tela sempre renderiza com o que já existe localmente e
 // dispara o sync em background via `after()` — nunca bloqueia a resposta,
 // nem na primeiríssima sincronização de uma conexão (sem isso, a primeira

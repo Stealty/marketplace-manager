@@ -5,7 +5,7 @@ import { RefreshButton } from '@/components/RefreshButton';
 import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { getClaims, getClaimsLastSyncedAt } from '@/services/claimsService';
 import { ClaimsList } from './claims-list';
-import { refreshClaims } from './actions';
+import { refreshClaims, checkClaimsRefreshDone } from './actions';
 
 export default async function ReclamacoesPage() {
   const [claims, lastSuccessAt] = await Promise.all([getClaims(), getClaimsLastSyncedAt()]);
@@ -19,7 +19,7 @@ export default async function ReclamacoesPage() {
         action={
           <Stack direction="row" spacing={1.5} alignItems="center">
             <LastSyncedInfo lastSuccessAt={lastSuccessAt} />
-            <RefreshButton action={refreshClaims} />
+            <RefreshButton action={refreshClaims} checkDone={checkClaimsRefreshDone} />
           </Stack>
         }
       />

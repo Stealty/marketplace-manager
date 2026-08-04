@@ -10,7 +10,7 @@ import { getOrders, getOrdersLastSyncedAt } from '@/services/ordersService';
 import { FreightChart } from './freight-chart';
 import { DetailSection } from './detail-section';
 import { sellerFreightRatio } from './columns';
-import { refreshOrders } from './actions';
+import { refreshOrders, checkOrdersRefreshDone } from './actions';
 
 // Faixas baseadas no custo do vendedor (base do painel legado), ecoando a
 // severidade que o app antigo usava: até 20% ok, 20–50% atenção, acima crítico.
@@ -62,7 +62,7 @@ export default async function FretePage() {
         action={
           <Stack direction="row" spacing={1.5} alignItems="center">
             <LastSyncedInfo lastSuccessAt={lastSuccessAt} />
-            <RefreshButton action={refreshOrders} />
+            <RefreshButton action={refreshOrders} checkDone={checkOrdersRefreshDone} />
           </Stack>
         }
       />

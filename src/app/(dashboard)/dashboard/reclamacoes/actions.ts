@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { toFriendlySyncError } from '@/lib/mercadolivre/errors';
 import {
@@ -11,20 +12,33 @@ import {
 } from '@/lib/mercadolivre/client';
 import { syncAllClaims } from '@/services/sync/claimsSync';
 import { syncAllOrders } from '@/services/sync/ordersSync';
+import { isSyncedSince } from '@/lib/sync/freshness';
+import { getMarketplaceConnections } from '@/services/connectionsService';
 import type { MarketplaceConnection } from '@/types/database';
 
-export async function refreshClaims(): Promise<{ error?: string }> {
+// A sincronização roda em background (after()) em vez de bloquear a
+// resposta — ver o mesmo comentário em pedidos/actions.ts.
+export async function refreshClaims(): Promise<{ error?: string; startedAt?: string }> {
   const supabase = await createClient();
-  try {
-    // orders antes de claims: claims resolve claims.order_id via lookup
-    // pontual em orders (busca por external_order_id) no momento do sync.
-    await syncAllOrders(supabase);
-    await syncAllClaims(supabase);
-  } catch (error) {
-    return toFriendlySyncError(error);
-  }
-  revalidatePath('/dashboard/reclamacoes');
-  return {};
+  const startedAt = new Date().toISOString();
+  after(async () => {
+    try {
+      // orders antes de claims: claims resolve claims.order_id via lookup
+      // pontual em orders (busca por external_order_id) no momento do sync.
+      await syncAllOrders(supabase);
+      await syncAllClaims(supabase);
+    } catch (error) {
+      console.error('[refreshClaims] sincronização em background falhou', error);
+    }
+    revalidatePath('/dashboard/reclamacoes');
+  });
+  return { startedAt };
+}
+
+export async function checkClaimsRefreshDone(startedAt: string): Promise<boolean> {
+  const supabase = await createClient();
+  const connections = await getMarketplaceConnections();
+  return isSyncedSince(supabase, connections, ['orders', 'claims'], startedAt);
 }
 
 async function getClaimConnection(claimId: string) {

@@ -8,7 +8,7 @@ import { LastSyncedInfo } from '@/components/LastSyncedInfo';
 import { StoreTag } from '@/components/StoreTag';
 import { powerSellerLabel, reputationLevelLabel } from '@/lib/format';
 import { getReputationMetrics, getReputationLastSyncedAt } from '@/services/reputationService';
-import { refreshReputation } from './actions';
+import { refreshReputation, checkReputationRefreshDone } from './actions';
 
 const percent = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 1 });
 
@@ -33,7 +33,7 @@ export default async function ReputacaoPage() {
         action={
           <Stack direction="row" spacing={1.5} alignItems="center">
             <LastSyncedInfo lastSuccessAt={lastSuccessAt} />
-            <RefreshButton action={refreshReputation} />
+            <RefreshButton action={refreshReputation} checkDone={checkReputationRefreshDone} />
           </Stack>
         }
       />

@@ -37,6 +37,11 @@ export async function POST(request: NextRequest) {
 
   const body: MercadoLivreNotification | null = await request.json().catch(() => null);
 
+  // Diagnóstico temporário: sem isso não há como saber qual topic está
+  // batendo aqui quando não cai em nenhum dos Sets abaixo (esse caso não
+  // loga nada) — remover depois de confirmar a causa do volume de requests.
+  console.log('[ml-webhook] topic=%s user_id=%s resource=%s', body?.topic, body?.user_id, body?.resource);
+
   if (body?.topic && body.user_id !== undefined) {
     const externalAccountId = String(body.user_id);
 
